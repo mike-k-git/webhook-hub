@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+      steps:
+        - uses: actions/checkout@v6
+        - uses: actions/setup-python@v6
+          with:
+            python-version: "3.14"
+        - run: pip install -e '.[dev]'
+        - run: ruff check
+        - run: ruff format
+
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: webhook
+          POSTGRES_PASSWORD: webhook
+          POSTGRES_DB: webhook_hub_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U webhook -d webhook_hub_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://webhook:webhook@localhost:5432/webhook_hub_test
+      TEST_DATABASE_URL: postgresql+asyncpg://webhook:webhook@localhost:5432/webhook_hub_test
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - run: pip install -e '.[dev]'
+      - run: pytest
