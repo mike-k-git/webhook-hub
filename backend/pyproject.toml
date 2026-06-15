@@ -14,7 +14,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=9.1", "pytest-asyncio>=1.4", "httpx>=0.28", "respx>=0.23"]
+dev = [
+  "pytest>=9.1",
+  "pytest-asyncio>=1.4",
+  "httpx>=0.28",
+  "respx>=0.23",
+  "ruff==0.15.17",
+]
 
 [build-system]
 requires = ["setuptools>=82"]
@@ -27,3 +33,11 @@ packages = ["app"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+extend-exclude = ["alembic"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "Q", "FAST", "ASYNC", "C4", "SIM", "RUF"]
