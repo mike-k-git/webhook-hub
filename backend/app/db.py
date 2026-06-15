@@ -19,6 +19,6 @@ class Base(DeclarativeBase):
     pass
 
 
-async def get_sessio() -> AsyncIterator[AsyncSession]:
+async def get_session() -> AsyncIterator[AsyncSession]:
     async with AsyncSessionLocal() as session:
         yield session
