@@ -1,11 +1,10 @@
 import hashlib
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, status
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import get_session
+from app.db import SessionDep
 from app.models import Event, Source
 from app.schemas import IngestAck
 
@@ -17,9 +16,7 @@ router = APIRouter(prefix="/ingest", tags=["ingest"])
     response_model=IngestAck,
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def ingest(
-    source_name: str, request: Request, session: AsyncSession = Depends(get_session)
-) -> IngestAck:
+async def ingest(source_name: str, request: Request, session: SessionDep) -> IngestAck:
     raw = await request.body()
 
     source = (
@@ -34,8 +31,10 @@ async def ingest(
 
     try:
         payload = json.loads(raw)
-    except json.JSONDecodeError:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="invalid JSON body")
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="invalid JSON body"
+        ) from exc
 
     event = Event(
         source_id=source.id,

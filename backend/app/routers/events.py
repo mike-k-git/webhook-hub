@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Annotated
 
-from app.db import get_session
+from fastapi import APIRouter, Query
+from sqlalchemy import select
+
+from app.db import SessionDep
 from app.models import Event
 from app.schemas import EventRead
 
@@ -11,7 +12,7 @@ router = APIRouter(prefix="/events", tags=["events"])
 
 @router.get("", response_model=list[EventRead])
 async def list_events(
-    session: AsyncSession = Depends(get_session), limit: int = Query(50, le=200)
+    session: SessionDep, limit: Annotated[int, Query(le=200)] = 50
 ) -> list[Event]:
     result = await session.execute(
         select(Event).order_by(Event.received_at.desc()).limit(limit)
