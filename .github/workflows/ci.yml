@@ -50,3 +50,17 @@ jobs:
           python-version: "3.14"
       - run: pip install -e '.[dev]'
       - run: pytest
+
+  typecheck:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - run: python -m venv .venv
+      - run: .venv/bin/pip install -e '.[dev]'
+      - run: .venv/bin/basedpyright
