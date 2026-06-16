@@ -8,16 +8,9 @@ async def test_create_source_hides_secret(client):
     assert "signing_secret" not in body  # response schema must never leak it
 
 
-async def test_ingest_then_list(client):
-    await client.post(
-        "/sources", json={"name": "stripe-test", "signing_secret": "secret"}
-    )
-
-    r = await client.post(
-        "/ingest/stripe-test",
-        json={"type": "payment.succeeded", "amount": 4200},
-        headers={"idempotency-key": "evt_1"},
-    )
+async def test_ingest_then_list(client, source, signed):
+    raw, headers = signed({"type": "payment.succeeded"}, key="evt_1")
+    r = await client.post(f"/ingest/{source}", content=raw, headers=headers)
     assert r.status_code == 202
     event_id = r.json()["event_id"]
 

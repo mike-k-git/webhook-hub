@@ -1,11 +1,14 @@
+import json
 import os
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db import Base, get_session
 from app.main import app
+from app.security import sign
 
 TEST_DATABASE_URL = os.environ["TEST_DATABASE_URL"]
 
@@ -43,3 +46,31 @@ async def client(db_engine):
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
     app.dependency_overrides.clear()
+
+
+SECRET = "secret_test"
+
+
+@pytest.fixture
+def signed():
+    def _make(
+        body: dict, *, secret: str = SECRET, key: str | None = None
+    ) -> tuple[bytes, dict]:
+        raw = json.dumps(body).encode()
+        headers = {
+            "X-Webhook-Signature": sign(secret, raw),
+            "Content-Type": "application/json",
+        }
+        if key is not None:
+            headers["Idempotency-Key"] = key
+        return raw, headers
+
+    return _make
+
+
+@pytest_asyncio.fixture
+async def source(client) -> str:
+    await client.post(
+        "/sources", json={"name": "stripe-test", "signing_secret": SECRET}
+    )
+    return "stripe-test"
