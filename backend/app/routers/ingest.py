@@ -1,12 +1,15 @@
 import hashlib
 import json
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Header, HTTPException, Request, Response, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.db import SessionDep
 from app.models import Event, Source
 from app.schemas import IngestAck
+from app.security import verify
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
@@ -16,7 +19,14 @@ router = APIRouter(prefix="/ingest", tags=["ingest"])
     response_model=IngestAck,
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def ingest(source_name: str, request: Request, session: SessionDep) -> IngestAck:
+async def ingest(
+    source_name: str,
+    request: Request,
+    session: SessionDep,
+    response: Response,
+    x_webhook_signature: Annotated[str | None, Header()] = None,
+    idempotency_key: Annotated[str | None, Header()] = None,
+) -> IngestAck:
     raw = await request.body()
 
     source = (
@@ -25,9 +35,11 @@ async def ingest(source_name: str, request: Request, session: SessionDep) -> Ing
     if source is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="unknown source")
 
-    idempotency_key = (
-        request.headers.get("idempotency-key") or hashlib.sha256(raw).hexdigest()
-    )
+    if not verify(source.signing_secret, raw, x_webhook_signature):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="invalid signature")
+
+    key = idempotency_key or hashlib.sha256(raw).hexdigest()
+    source_id = source.id
 
     try:
         payload = json.loads(raw)
@@ -37,13 +49,26 @@ async def ingest(source_name: str, request: Request, session: SessionDep) -> Ing
         ) from exc
 
     event = Event(
-        source_id=source.id,
-        idempotency_key=idempotency_key,
+        source_id=source_id,
+        idempotency_key=key,
         event_type=payload.get("type") if isinstance(payload, dict) else None,
         payload=payload,
         headers=dict(request.headers),
     )
     session.add(event)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        existing = (
+            await session.execute(
+                select(Event).where(
+                    Event.source_id == source_id,
+                    Event.idempotency_key == key,
+                )
+            )
+        ).scalar_one()
+        response.status_code = status.HTTP_200_OK
+        return IngestAck(event_id=existing.id)
 
     return IngestAck(event_id=event.id)
