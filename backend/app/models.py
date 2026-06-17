@@ -61,6 +61,11 @@ class Destination(Base):
 
 class Route(Base):
     __tablename__ = "routes"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_id", "destination_id", name="uq_routes_source_destination"
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sources.id"), index=True)
