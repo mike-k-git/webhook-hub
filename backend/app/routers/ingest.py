@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 import hashlib
 import json
 from typing import Annotated
@@ -7,7 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.db import SessionDep
-from app.models import Event, Source
+from app.models import Delivery, Destination, Event, Route, Source
+from app.routers import destinations
 from app.schemas import IngestAck
 from app.security import verify
 
@@ -57,7 +59,7 @@ async def ingest(
     )
     session.add(event)
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError:
         await session.rollback()
         existing = (
@@ -71,4 +73,21 @@ async def ingest(
         response.status_code = status.HTTP_200_OK
         return IngestAck(event_id=existing.id)
 
+    destination_ids = (
+        (
+            await session.execute(
+                select(Route.destination_id).where(Route.source_id == source_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    now = datetime.now(UTC)
+    for dest_id in destination_ids:
+        session.add(
+            Delivery(event_id=event.id, destination_id=dest_id, next_attempt_at=now)
+        )
+
+    await session.commit()
     return IngestAck(event_id=event.id)
