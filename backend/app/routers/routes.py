@@ -8,7 +8,6 @@ from app.db import SessionDep
 from app.models import Destination, Route, Source
 from app.schemas import RouteCreate, RouteRead
 
-
 router = APIRouter(prefix="/routes", tags=["routes"])
 
 

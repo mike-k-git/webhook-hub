@@ -1,6 +1,6 @@
-from datetime import UTC, datetime
 import hashlib
 import json
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Header, HTTPException, Request, Response, status
@@ -8,8 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.db import SessionDep
-from app.models import Delivery, Destination, Event, Route, Source
-from app.routers import destinations
+from app.models import Delivery, Event, Route, Source
 from app.schemas import IngestAck
 from app.security import verify
 
