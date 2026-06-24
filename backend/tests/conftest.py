@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db import Base, get_session
 from app.main import app
+from app.models import Delivery, Destination, Event, Source
 from app.security import sign
 
 TEST_DATABASE_URL = os.environ["TEST_DATABASE_URL"]
@@ -74,3 +75,38 @@ async def source(client) -> str:
         "/sources", json={"name": "stripe-test", "signing_secret": SECRET}
     )
     return "stripe-test"
+
+
+@pytest_asyncio.fixture
+async def make_event(db_session):
+    src = Source(name="seed-src", signing_secret="x")
+    dst = Destination(name="seed-dst", url="http://t.test")
+    db_session.add_all([src, dst])
+    await db_session.flush()
+    n = 0
+
+    async def _make_event(*, source_id=None, received_at, statuses=()):
+        nonlocal n
+        n += 1
+        event = Event(
+            source_id=source_id or src.id,
+            received_at=received_at,
+            idempotency_key=f"k{n}",
+            payload={},
+            headers={},
+        )
+        db_session.add(event)
+        await db_session.flush()
+        for s in statuses:
+            db_session.add(
+                Delivery(
+                    event_id=event.id,
+                    destination_id=dst.id,
+                    status=s,
+                    next_attempt_at=received_at,
+                )
+            )
+        await db_session.commit()
+        return event
+
+    return _make_event

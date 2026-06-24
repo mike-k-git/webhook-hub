@@ -30,7 +30,6 @@ async def test_delivery_and_attempts_in_response(client, source, signed, db_sess
 
     await _insert_delivery_attempt(db_session)
     event_details = (await client.get(f"/events/{event_id}")).json()
-    print(event_details)
 
     assert event_details["deliveries"][0]["attempts"][0]["attempt_number"] == 1
     assert event_details["deliveries"][0]["attempts"][0]["duration_ms"] == 200
