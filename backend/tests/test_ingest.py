@@ -16,7 +16,7 @@ async def test_ingest_then_list(client, source, signed):
 
     r = await client.get("/events")
     assert r.status_code == 200
-    events = r.json()
+    events = r.json()["items"]
     assert len(events) == 1
     assert events[0]["id"] == event_id
     assert events[0]["event_type"] == "payment.succeeded"
