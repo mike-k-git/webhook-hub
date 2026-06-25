@@ -1,8 +1,5 @@
 from datetime import datetime
 
-import pytest
-from fastapi import HTTPException
-
 from app.models import DeliveryStatus
 
 
@@ -44,9 +41,9 @@ async def test_events_rollups(client, make_event):
     await make_event(
         received_at=datetime.fromisoformat("2011-11-04T00:05:23+04:00"),
         statuses=(
-            DeliveryStatus.succeeded.value,
-            DeliveryStatus.succeeded.value,
-            DeliveryStatus.dead_letter.value,
+            DeliveryStatus.succeeded,
+            DeliveryStatus.succeeded,
+            DeliveryStatus.dead_letter,
         ),
     )
 
@@ -58,13 +55,8 @@ async def test_events_rollups(client, make_event):
     assert r["next_cursor"] is None
     assert len(r["items"]) == 2
     assert r["items"][0]["rollup"]["total"] == 3
-    assert (
-        r["items"][0]["rollup"]["counts_by_status"][DeliveryStatus.succeeded.value] == 2
-    )
-    assert (
-        r["items"][0]["rollup"]["counts_by_status"][DeliveryStatus.dead_letter.value]
-        == 1
-    )
+    assert r["items"][0]["rollup"]["counts_by_status"][DeliveryStatus.succeeded] == 2
+    assert r["items"][0]["rollup"]["counts_by_status"][DeliveryStatus.dead_letter] == 1
     assert r["items"][1]["rollup"]["total"] == 0
     assert r["items"][1]["rollup"]["counts_by_status"] == {}
 
@@ -75,9 +67,9 @@ async def test_filter_source(client, make_event, source):
     await make_event(
         received_at=datetime.fromisoformat("2011-11-04T00:05:23+04:00"),
         statuses=(
-            DeliveryStatus.succeeded.value,
-            DeliveryStatus.succeeded.value,
-            DeliveryStatus.dead_letter.value,
+            DeliveryStatus.succeeded,
+            DeliveryStatus.succeeded,
+            DeliveryStatus.dead_letter,
         ),
     )
 
@@ -85,9 +77,9 @@ async def test_filter_source(client, make_event, source):
         source_id=src_id,
         received_at=datetime.fromisoformat("2011-11-04T00:05:23+04:00"),
         statuses=(
-            DeliveryStatus.succeeded.value,
-            DeliveryStatus.succeeded.value,
-            DeliveryStatus.dead_letter.value,
+            DeliveryStatus.succeeded,
+            DeliveryStatus.succeeded,
+            DeliveryStatus.dead_letter,
         ),
     )
 
@@ -100,12 +92,12 @@ async def test_filter_source(client, make_event, source):
 async def test_filter_delivery_status(client, make_event):
     await make_event(
         received_at=datetime.fromisoformat("2011-11-04T00:05:23+04:00"),
-        statuses=(DeliveryStatus.succeeded.value, DeliveryStatus.delivering.value),
+        statuses=(DeliveryStatus.succeeded, DeliveryStatus.delivering),
     )
 
     await make_event(
         received_at=datetime.fromisoformat("2011-11-04T00:05:23+04:00"),
-        statuses=(DeliveryStatus.delivering.value,),
+        statuses=(DeliveryStatus.delivering,),
     )
 
     r = (await client.get(f"/events?status={DeliveryStatus.succeeded.value}")).json()
@@ -114,19 +106,14 @@ async def test_filter_delivery_status(client, make_event):
     assert r["next_cursor"] is None
     assert len(r["items"]) == 1
     assert r["items"][0]["rollup"]["total"] == 2
-    assert (
-        r["items"][0]["rollup"]["counts_by_status"][DeliveryStatus.succeeded.value] == 1
-    )
-    assert (
-        r["items"][0]["rollup"]["counts_by_status"][DeliveryStatus.delivering.value]
-        == 1
-    )
+    assert r["items"][0]["rollup"]["counts_by_status"][DeliveryStatus.succeeded] == 1
+    assert r["items"][0]["rollup"]["counts_by_status"][DeliveryStatus.delivering] == 1
 
 
 async def test_unknown_source(client, make_event):
     await make_event(
         received_at=datetime.fromisoformat("2011-11-04T00:05:23+04:00"),
-        statuses=(DeliveryStatus.succeeded.value, DeliveryStatus.delivering.value),
+        statuses=(DeliveryStatus.succeeded, DeliveryStatus.delivering),
     )
 
     r = (await client.get("/events?source=test_unknown_source")).json()
