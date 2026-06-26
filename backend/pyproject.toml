@@ -11,13 +11,14 @@ dependencies = [
   "pydantic>=2.13",
   "pydantic-settings>=2.14",
   "alembic>=1.18",
+  "saq[redis]>=0.26",
+  "httpx>=0.28",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest>=9.1",
   "pytest-asyncio>=1.4",
-  "httpx>=0.28",
   "respx>=0.23",
   "ruff==0.15.17",
   "basedpyright==1.39.8",
