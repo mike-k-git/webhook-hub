@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -13,6 +14,8 @@ from app.schemas import IngestAck
 from app.security import verify
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
+
+logger = logging.getLogger(__name__)
 
 
 @router.post(
@@ -83,10 +86,21 @@ async def ingest(
     )
 
     now = datetime.now(UTC)
+    deliveries = []
     for dest_id in destination_ids:
-        session.add(
-            Delivery(event_id=event.id, destination_id=dest_id, next_attempt_at=now)
+        delivery = Delivery(
+            event_id=event.id, destination_id=dest_id, next_attempt_at=now
         )
+        deliveries.append(delivery)
+        session.add(delivery)
 
     await session.commit()
+
+    try:
+        for delivery in deliveries:
+            await request.app.state.queue.enqueue(
+                "deliver", delivery_id=str(delivery.id)
+            )
+    except Exception:
+        logger.warning("enqueue failed for event %s; sweeper will recover", event.id)
     return IngestAck(event_id=event.id)
