@@ -1,6 +1,7 @@
 import datetime as dt
 import uuid
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Awaitable, Callable
 
 import httpx
@@ -11,10 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import settings as app_settings
 from app.db import AsyncSessionLocal
-from app.models import Delivery, DeliveryAttempt, DeliveryStatus
+from app.models import Delivery, DeliveryAttempt, DeliveryStatus, Destination, Event
 
 LEASE = 60
 FIXED_DELAY = 100
+BODY_CAP = 4096
 
 
 class WorkerContext(Context):
@@ -36,23 +38,33 @@ class DeliverySnapshot:
     attempt_count: int
     destination_id: uuid.UUID
     event_id: uuid.UUID
+    url: str
+    payload: dict
 
 
-SendFn = Callable[[DeliverySnapshot], Awaitable[DeliveryResult]]
+SendFn = Callable[[httpx.AsyncClient, DeliverySnapshot], Awaitable[DeliveryResult]]
 
 
-async def _real_send(delivery_context: DeliverySnapshot) -> DeliveryResult:
-    raise NotImplementedError
-
-
-async def success_stub(ctx: DeliverySnapshot) -> DeliveryResult:
+async def _real_send(
+    client: httpx.AsyncClient, snapshot: DeliverySnapshot
+) -> DeliveryResult:
+    start = perf_counter()
+    try:
+        resp = await client.post(snapshot.url, json=snapshot.payload)
+    except httpx.RequestError as exc:
+        ms = int((perf_counter() - start) * 1000)
+        return DeliveryResult(success=False, error=str(exc), duration_ms=ms)
+    ms = int((perf_counter() - start) * 1000)
     return DeliveryResult(
-        success=False, response_status=200, response_body="ok", duration_ms=10
+        success=200 <= resp.status_code < 300,
+        response_status=resp.status_code,
+        response_body=resp.text[:BODY_CAP],
+        duration_ms=ms,
     )
 
 
 async def deliver(
-    ctx: WorkerContext, *, delivery_id: str, send_fn: SendFn = success_stub
+    ctx: WorkerContext, *, delivery_id: str, send_fn: SendFn = _real_send
 ) -> None:
     event_delivery_id = uuid.UUID(delivery_id)
 
@@ -91,24 +103,28 @@ async def deliver(
         if row is None:
             return
 
-        attempt_count = row.attempt_count
-        destination_id = row.destination_id
-        event_id = row.event_id
+        dst = await session.get(Destination, row.destination_id)
+        event = await session.get(Event, row.event_id)
+
+        if dst is None or event is None:
+            raise TypeError
+
+        snapshot = DeliverySnapshot(
+            attempt_count=row.attempt_count,
+            destination_id=row.destination_id,
+            event_id=row.event_id,
+            url=dst.url,
+            payload=event.payload,
+        )
 
         await session.commit()
 
-    result = await send_fn(
-        DeliverySnapshot(
-            attempt_count=attempt_count,
-            destination_id=destination_id,
-            event_id=event_id,
-        )
-    )
+    result = await send_fn(ctx["client"], snapshot)
 
     async with ctx["sessionmaker"]() as session:
         attempt = DeliveryAttempt(
             delivery_id=event_delivery_id,
-            attempt_number=attempt_count + 1,
+            attempt_number=snapshot.attempt_count + 1,
             response_status=result.response_status,
             response_body=result.response_body,
             error=result.error,
@@ -122,7 +138,9 @@ async def deliver(
         if result.success:
             await session.execute(
                 stmt.values(
-                    status=DeliveryStatus.succeeded, attempt_count=attempt_count + 1
+                    status=DeliveryStatus.succeeded,
+                    next_attempt_at=None,
+                    attempt_count=snapshot.attempt_count + 1,
                 )
             )
 
@@ -131,7 +149,7 @@ async def deliver(
                 stmt.values(
                     status=DeliveryStatus.failed,
                     next_attempt_at=func.now() + dt.timedelta(seconds=FIXED_DELAY),
-                    attempt_count=attempt_count + 1,
+                    attempt_count=snapshot.attempt_count + 1,
                 )
             )
 

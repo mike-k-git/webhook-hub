@@ -35,6 +35,11 @@ async def db_session(db_engine):
 
 
 @pytest_asyncio.fixture
+async def sessionmaker_factory(db_engine):
+    return async_sessionmaker(db_engine, expire_on_commit=False)
+
+
+@pytest_asyncio.fixture
 async def client(db_engine):
     maker = async_sessionmaker(db_engine, expire_on_commit=False)
 
@@ -80,7 +85,7 @@ async def source(client) -> str:
 @pytest_asyncio.fixture
 async def make_event(db_session):
     src = Source(name="seed-src", signing_secret="x")
-    dst = Destination(name="seed-dst", url="http://t.test")
+    dst = Destination(name="seed-dst", url="http://t.test/")
     db_session.add_all([src, dst])
     await db_session.flush()
     n = 0
