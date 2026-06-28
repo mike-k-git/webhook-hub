@@ -1,4 +1,5 @@
 import datetime as dt
+import logging
 import uuid
 from dataclasses import dataclass
 from time import perf_counter
@@ -7,7 +8,7 @@ from typing import Awaitable, Callable
 import httpx
 from saq import CronJob, Queue
 from saq.types import Context, SettingsDict
-from sqlalchemy import and_, func, or_, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import settings as app_settings
@@ -17,6 +18,9 @@ from app.models import Delivery, DeliveryAttempt, DeliveryStatus, Destination, E
 LEASE = 60
 FIXED_DELAY = 100
 BODY_CAP = 4096
+REDISPATCH_LIMIT = 100
+
+logger = logging.getLogger(__name__)
 
 
 class WorkerContext(Context):
@@ -77,7 +81,9 @@ async def deliver(
                         Delivery.id == event_delivery_id,
                         or_(
                             and_(
-                                Delivery.status == DeliveryStatus.pending,
+                                Delivery.status.in_(
+                                    [DeliveryStatus.pending, DeliveryStatus.failed]
+                                ),
                                 or_(
                                     Delivery.next_attempt_at.is_(None),
                                     Delivery.next_attempt_at <= func.now(),
@@ -107,7 +113,13 @@ async def deliver(
         event = await session.get(Event, row.event_id)
 
         if dst is None or event is None:
-            raise TypeError
+            logger.error(
+                "delivery %s references missing dst=%s event=%s",
+                event_delivery_id,
+                row.destination_id,
+                row.event_id,
+            )
+            return
 
         snapshot = DeliverySnapshot(
             attempt_count=row.attempt_count,
@@ -157,7 +169,43 @@ async def deliver(
 
 
 async def sweep(ctx: WorkerContext) -> None:
-    print("sweeper")
+    async with ctx["sessionmaker"]() as session:
+        redispatch = (
+            (
+                await session.execute(
+                    select(Delivery.id)
+                    .where(
+                        or_(
+                            and_(
+                                Delivery.status.in_(
+                                    [DeliveryStatus.pending, DeliveryStatus.failed]
+                                ),
+                                or_(
+                                    Delivery.next_attempt_at.is_(None),
+                                    Delivery.next_attempt_at <= func.now(),
+                                ),
+                            ),
+                            and_(
+                                Delivery.status == DeliveryStatus.delivering,
+                                Delivery.updated_at
+                                <= func.now() - dt.timedelta(seconds=LEASE),
+                            ),
+                        ),
+                    )
+                    .limit(REDISPATCH_LIMIT)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        logger.debug("%d deliveries are about to be re-dispatched", len(redispatch))
+
+        for id in redispatch:
+            try:
+                await queue.enqueue("deliver", delivery_id=str(id), key=f"deliver:{id}")
+            except Exception:
+                logger.exception("failed to enqueue delivery %s", id)
 
 
 async def startup(ctx: WorkerContext) -> None:
