@@ -33,8 +33,10 @@ That starts Postgres, Redis, the API on `:8000`, and the worker. From there you 
 
 ## Status
 
-Still being built. Signature checks, idempotent dedupe, routing with fan-out, and the read API are done and tested. The delivery worker is the current focus. That covers the atomic claim, the outbound POST, attempt logging, and the sweeper.
+Still being built, but the core loop runs end to end. Signature checks, idempotent dedupe, routing with fan-out, the read API, and the async delivery worker are all done and tested. The worker claims each delivery atomically, POSTs it, records the attempt, and reschedules failures for another try. A sweeper recovers anything a lost enqueue or a crashed worker left stranded. So an event can come in, get verified and stored, and be delivered to every destination with retries, today.
+
+Next up is making those retries smart: backoff, an attempt cap, and dead-lettering.
 
 ## Planned
 
-The retry engine comes next. It'll do exponential backoff with jitter so retries don't stampede, cap the attempts, and dead-letter whatever runs out. Failed deliveries will be replayable in one click. A React dashboard will sit on top of the read API for inspecting payloads and replaying failures. After that, a one-command deploy to Fly.io or Railway. Further out, the hub will be able to reshape payloads per route and sign its own outbound requests.
+Retries already happen, just on a flat delay. The next step makes them smart: exponential backoff with jitter so they don't stampede, a cap on attempts, and dead-letter for whatever runs out. Then failed deliveries become replayable in one click. A React dashboard will sit on top of the read API for inspecting payloads and replaying failures. After that, a one-command deploy to Fly.io or Railway. Further out, the hub will reshape payloads per route and sign its own outbound requests.
