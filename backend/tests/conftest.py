@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
@@ -8,7 +9,14 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db import Base, get_session
 from app.main import app
-from app.models import Delivery, Destination, Event, Source
+from app.models import (
+    Delivery,
+    DeliveryAttempt,
+    DeliveryStatus,
+    Destination,
+    Event,
+    Source,
+)
 from app.security import sign
 
 TEST_DATABASE_URL = os.environ["TEST_DATABASE_URL"]
@@ -115,3 +123,53 @@ async def make_event(db_session):
         return event
 
     return _make_event
+
+
+@pytest_asyncio.fixture
+async def make_delivery(db_session):
+    src = Source(name="mk-seed-src", signing_secret="x")
+    dst = Destination(name="mk-seed-dst", url="http://t.test/")
+    db_session.add_all([src, dst])
+    await db_session.flush()
+
+    n = 0
+
+    async def _make_delivery(
+        *, status, next_attempt_at, attempt_count, updated_at=None
+    ):
+        nonlocal n
+        n += 1
+        event = Event(
+            source_id=src.id,
+            idempotency_key=f"k{n}",
+            payload={},
+            headers={},
+        )
+        db_session.add(event)
+        await db_session.flush()
+        delivery = Delivery(
+            event_id=event.id,
+            destination_id=dst.id,
+            status=status,
+            next_attempt_at=next_attempt_at,
+            attempt_count=attempt_count,
+            updated_at=updated_at or datetime.now(UTC),
+        )
+        db_session.add(delivery)
+        await db_session.flush()
+
+        if status is not DeliveryStatus.pending:
+            attempt = DeliveryAttempt(
+                delivery_id=delivery.id,
+                attempt_number=1,
+                response_status=None,
+                response_body=None,
+                error=None,
+                duration_ms=0,
+            )
+            db_session.add(attempt)
+
+        await db_session.commit()
+        return delivery
+
+    return _make_delivery
