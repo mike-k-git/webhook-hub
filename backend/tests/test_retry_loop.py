@@ -5,10 +5,10 @@ import httpx
 from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.main import app
 from app.models import Delivery, DeliveryStatus
 from app.tasks import (
-    LEASE,
     DeliveryResult,
     DeliverySnapshot,
     WorkerContext,
@@ -93,7 +93,8 @@ async def test_retry_loop(client, source, sessionmaker_factory, signed):
             await check.execute(
                 update(Delivery)
                 .values(
-                    next_attempt_at=datetime.now(UTC) - timedelta(seconds=LEASE * 2)
+                    next_attempt_at=datetime.now(UTC)
+                    - timedelta(seconds=settings.lease * 2)
                 )
                 .where(Delivery.id == event_details["deliveries"][0]["id"])
             )

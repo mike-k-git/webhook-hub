@@ -8,17 +8,14 @@ from typing import Awaitable, Callable
 import httpx
 from saq import CronJob, Queue
 from saq.types import Context, SettingsDict
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import ColumnElement, and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import settings as app_settings
 from app.db import AsyncSessionLocal
 from app.models import Delivery, DeliveryAttempt, DeliveryStatus, Destination, Event
 
-LEASE = 60
 FIXED_DELAY = 100
-BODY_CAP = 4096
-REDISPATCH_LIMIT = 100
 
 logger = logging.getLogger(__name__)
 
@@ -62,8 +59,25 @@ async def _real_send(
     return DeliveryResult(
         success=200 <= resp.status_code < 300,
         response_status=resp.status_code,
-        response_body=resp.text[:BODY_CAP],
+        response_body=resp.text[: app_settings.body_cap],
         duration_ms=ms,
+    )
+
+
+def claimable() -> ColumnElement[bool]:
+    return or_(
+        and_(
+            Delivery.status.in_([DeliveryStatus.pending, DeliveryStatus.failed]),
+            or_(
+                Delivery.next_attempt_at.is_(None),
+                Delivery.next_attempt_at <= func.now(),
+            ),
+        ),
+        and_(
+            Delivery.status == DeliveryStatus.delivering,
+            Delivery.updated_at
+            <= func.now() - dt.timedelta(seconds=app_settings.lease),
+        ),
     )
 
 
@@ -76,27 +90,7 @@ async def deliver(
         row = (
             await session.execute(
                 update(Delivery)
-                .where(
-                    and_(
-                        Delivery.id == event_delivery_id,
-                        or_(
-                            and_(
-                                Delivery.status.in_(
-                                    [DeliveryStatus.pending, DeliveryStatus.failed]
-                                ),
-                                or_(
-                                    Delivery.next_attempt_at.is_(None),
-                                    Delivery.next_attempt_at <= func.now(),
-                                ),
-                            ),
-                            and_(
-                                Delivery.status == DeliveryStatus.delivering,
-                                Delivery.updated_at
-                                <= func.now() - dt.timedelta(seconds=LEASE),
-                            ),
-                        ),
-                    )
-                )
+                .where(and_(Delivery.id == event_delivery_id, claimable()))
                 .values(status=DeliveryStatus.delivering)
                 .returning(
                     Delivery.attempt_count,
@@ -174,25 +168,8 @@ async def sweep(ctx: WorkerContext) -> None:
             (
                 await session.execute(
                     select(Delivery.id)
-                    .where(
-                        or_(
-                            and_(
-                                Delivery.status.in_(
-                                    [DeliveryStatus.pending, DeliveryStatus.failed]
-                                ),
-                                or_(
-                                    Delivery.next_attempt_at.is_(None),
-                                    Delivery.next_attempt_at <= func.now(),
-                                ),
-                            ),
-                            and_(
-                                Delivery.status == DeliveryStatus.delivering,
-                                Delivery.updated_at
-                                <= func.now() - dt.timedelta(seconds=LEASE),
-                            ),
-                        ),
-                    )
-                    .limit(REDISPATCH_LIMIT)
+                    .where(claimable())
+                    .limit(app_settings.redispatch_limit)
                 )
             )
             .scalars()
