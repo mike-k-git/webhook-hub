@@ -11,6 +11,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    Uuid,
     func,
     text,
 )
@@ -118,6 +119,8 @@ class Delivery(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+    locked_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     event: Mapped["Event"] = relationship(back_populates="deliveries")
     destination: Mapped["Destination"] = relationship()
