@@ -6,8 +6,9 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.models import Delivery, DeliveryStatus
-from app.tasks import LEASE, DeliveryResult, DeliverySnapshot, WorkerContext, deliver
+from app.tasks import DeliveryResult, DeliverySnapshot, WorkerContext, deliver
 from tests.fakes import send_fn
 
 
@@ -129,7 +130,7 @@ async def test_does_not_claim_future_scheduled_row(make_delivery, sessionmaker_f
 
 
 async def test_does_not_claim_already_claimed(make_delivery, sessionmaker_factory):
-    half_lease = timedelta(seconds=LEASE / 2)
+    half_lease = timedelta(seconds=settings.lease / 2)
     delivery = await make_delivery(
         status=DeliveryStatus.delivering,
         attempt_count=1,
@@ -169,7 +170,7 @@ async def test_claims_orphaned_row(make_delivery, sessionmaker_factory):
         status=DeliveryStatus.delivering,
         attempt_count=1,
         next_attempt_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC) - timedelta(seconds=LEASE * 5),
+        updated_at=datetime.now(UTC) - timedelta(seconds=settings.lease * 5),
     )
 
     results: list[DeliveryResult] = [_ok_result()]
@@ -243,7 +244,7 @@ async def test_atomic_claim_under_concurrency(make_delivery, sessionmaker_factor
 
 
 async def test_claims_failed_row(make_delivery, sessionmaker_factory):
-    past_lease = timedelta(seconds=LEASE * 2)
+    past_lease = timedelta(seconds=settings.lease * 2)
     delivery = await make_delivery(
         status=DeliveryStatus.failed,
         attempt_count=1,

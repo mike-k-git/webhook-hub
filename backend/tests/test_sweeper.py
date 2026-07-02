@@ -1,8 +1,9 @@
 from datetime import UTC, datetime, timedelta
 from typing import cast
 
+from app.config import settings
 from app.models import DeliveryStatus
-from app.tasks import LEASE, REDISPATCH_LIMIT, WorkerContext, sweep
+from app.tasks import WorkerContext, sweep
 from tests.fakes import FakeQueue, FakeRaisingQueue, FakeWorker
 
 
@@ -23,14 +24,14 @@ async def test_sweep_mix_of_rows(make_delivery, sessionmaker_factory):
     pending = await make_delivery(
         status=DeliveryStatus.pending,
         attempt_count=0,
-        next_attempt_at=datetime.now(UTC) - timedelta(seconds=LEASE / 2),
+        next_attempt_at=datetime.now(UTC) - timedelta(seconds=settings.lease / 2),
     )
 
     failed = await make_delivery(
         status=DeliveryStatus.failed,
         attempt_count=1,
-        next_attempt_at=datetime.now(UTC) - timedelta(seconds=LEASE * 2),
-        updated_at=datetime.now(UTC) - timedelta(seconds=LEASE * 2),
+        next_attempt_at=datetime.now(UTC) - timedelta(seconds=settings.lease * 2),
+        updated_at=datetime.now(UTC) - timedelta(seconds=settings.lease * 2),
     )
 
     pending_null = await make_delivery(
@@ -43,7 +44,7 @@ async def test_sweep_mix_of_rows(make_delivery, sessionmaker_factory):
         status=DeliveryStatus.delivering,
         attempt_count=1,
         next_attempt_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC) - timedelta(seconds=LEASE * 5),
+        updated_at=datetime.now(UTC) - timedelta(seconds=settings.lease * 5),
     )
 
     # scheduled
@@ -57,8 +58,8 @@ async def test_sweep_mix_of_rows(make_delivery, sessionmaker_factory):
     await make_delivery(
         status=DeliveryStatus.delivering,
         attempt_count=1,
-        next_attempt_at=datetime.now(UTC) + timedelta(seconds=LEASE / 2),
-        updated_at=datetime.now(UTC) - timedelta(seconds=LEASE / 2),
+        next_attempt_at=datetime.now(UTC) + timedelta(seconds=settings.lease / 2),
+        updated_at=datetime.now(UTC) - timedelta(seconds=settings.lease / 2),
     )
 
     fake_queue = FakeQueue()
@@ -75,11 +76,11 @@ async def test_sweep_mix_of_rows(make_delivery, sessionmaker_factory):
 
 
 async def test_bounded_batch(make_delivery, sessionmaker_factory):
-    for _ in range(REDISPATCH_LIMIT + 1):
+    for _ in range(settings.redispatch_limit + 1):
         await make_delivery(
             status=DeliveryStatus.pending,
             attempt_count=0,
-            next_attempt_at=datetime.now(UTC) - timedelta(seconds=LEASE / 2),
+            next_attempt_at=datetime.now(UTC) - timedelta(seconds=settings.lease / 2),
         )
 
     fake_queue = FakeQueue()
@@ -87,19 +88,21 @@ async def test_bounded_batch(make_delivery, sessionmaker_factory):
 
     await sweep(ctx)
 
-    assert len(fake_queue.enqueued) == REDISPATCH_LIMIT
+    assert len(fake_queue.enqueued) == settings.redispatch_limit
 
 
 async def test_failure_is_skipped(make_delivery, sessionmaker_factory):
     first = await make_delivery(
         status=DeliveryStatus.pending,
         attempt_count=0,
-        next_attempt_at=datetime.now(UTC) - timedelta(seconds=LEASE / 2),
+        next_attempt_at=datetime.now(UTC)
+        - timedelta(seconds=settings.redispatch_limit / 2),
     )
     second = await make_delivery(
         status=DeliveryStatus.pending,
         attempt_count=0,
-        next_attempt_at=datetime.now(UTC) - timedelta(seconds=LEASE / 2),
+        next_attempt_at=datetime.now(UTC)
+        - timedelta(seconds=settings.redispatch_limit / 2),
     )
 
     fake_raising_queue = FakeRaisingQueue(fail_for={str(first.id)})
