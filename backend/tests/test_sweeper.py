@@ -44,7 +44,7 @@ async def test_sweep_mix_of_rows(make_delivery, sessionmaker_factory):
         status=DeliveryStatus.delivering,
         attempt_count=1,
         next_attempt_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC) - timedelta(seconds=settings.lease * 5),
+        locked_until=datetime.now(UTC) - timedelta(seconds=settings.lease),
     )
 
     # scheduled
@@ -59,7 +59,7 @@ async def test_sweep_mix_of_rows(make_delivery, sessionmaker_factory):
         status=DeliveryStatus.delivering,
         attempt_count=1,
         next_attempt_at=datetime.now(UTC) + timedelta(seconds=settings.lease / 2),
-        updated_at=datetime.now(UTC) - timedelta(seconds=settings.lease / 2),
+        locked_until=datetime.now(UTC) + timedelta(seconds=settings.lease),
     )
 
     fake_queue = FakeQueue()

@@ -135,7 +135,7 @@ async def test_does_not_claim_already_claimed(make_delivery, sessionmaker_factor
         status=DeliveryStatus.delivering,
         attempt_count=1,
         next_attempt_at=datetime.now(UTC) + half_lease,
-        updated_at=datetime.now(UTC) - half_lease,
+        locked_until=datetime.now(UTC) + timedelta(seconds=settings.lease),
     )
 
     results: list[DeliveryResult] = [_ok_result()]

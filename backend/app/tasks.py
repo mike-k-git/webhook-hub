@@ -75,8 +75,10 @@ def claimable() -> ColumnElement[bool]:
         ),
         and_(
             Delivery.status == DeliveryStatus.delivering,
-            Delivery.updated_at
-            <= func.now() - dt.timedelta(seconds=app_settings.lease),
+            or_(
+                Delivery.locked_until.is_(None),
+                Delivery.locked_until <= func.now(),
+            ),
         ),
     )
 
@@ -86,12 +88,18 @@ async def deliver(
 ) -> None:
     event_delivery_id = uuid.UUID(delivery_id)
 
+    lock_token = uuid.uuid4()
+
     async with ctx["sessionmaker"]() as session:
         row = (
             await session.execute(
                 update(Delivery)
                 .where(and_(Delivery.id == event_delivery_id, claimable()))
-                .values(status=DeliveryStatus.delivering)
+                .values(
+                    status=DeliveryStatus.delivering,
+                    locked_by=lock_token,
+                    locked_until=func.now() + dt.timedelta(seconds=app_settings.lease),
+                )
                 .returning(
                     Delivery.attempt_count,
                     Delivery.destination_id,
@@ -137,28 +145,36 @@ async def deliver(
             duration_ms=result.duration_ms,
         )
 
-        session.add(attempt)
-
-        stmt = update(Delivery).where(Delivery.id == event_delivery_id)
+        stmt = update(Delivery).where(
+            and_(Delivery.id == event_delivery_id, Delivery.locked_by == lock_token)
+        )
 
         if result.success:
-            await session.execute(
-                stmt.values(
-                    status=DeliveryStatus.succeeded,
-                    next_attempt_at=None,
-                    attempt_count=snapshot.attempt_count + 1,
-                )
-            )
-
+            stmt = stmt.values(
+                status=DeliveryStatus.succeeded,
+                next_attempt_at=None,
+                attempt_count=snapshot.attempt_count + 1,
+                locked_by=None,
+                locked_until=None,
+            ).returning(Delivery.id)
         else:
-            await session.execute(
-                stmt.values(
-                    status=DeliveryStatus.failed,
-                    next_attempt_at=func.now() + dt.timedelta(seconds=FIXED_DELAY),
-                    attempt_count=snapshot.attempt_count + 1,
-                )
-            )
+            stmt = stmt.values(
+                status=DeliveryStatus.failed,
+                next_attempt_at=func.now() + dt.timedelta(seconds=FIXED_DELAY),
+                attempt_count=snapshot.attempt_count + 1,
+                locked_by=None,
+                locked_until=None,
+            ).returning(Delivery.id)
 
+        owner = (await session.execute(stmt)).one_or_none()
+
+        if owner is None:
+            logger.debug(
+                "delivery %s reclaimed, dropping stale finalize", event_delivery_id
+            )
+            return
+
+        session.add(attempt)
         await session.commit()
 
 
