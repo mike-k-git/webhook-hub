@@ -135,7 +135,7 @@ async def make_delivery(db_session):
     n = 0
 
     async def _make_delivery(
-        *, status, next_attempt_at, attempt_count, updated_at=None
+        *, status, next_attempt_at, attempt_count, updated_at=None, locked_until=None
     ):
         nonlocal n
         n += 1
@@ -154,6 +154,7 @@ async def make_delivery(db_session):
             next_attempt_at=next_attempt_at,
             attempt_count=attempt_count,
             updated_at=updated_at or datetime.now(UTC),
+            locked_until=locked_until,
         )
         db_session.add(delivery)
         await db_session.flush()
