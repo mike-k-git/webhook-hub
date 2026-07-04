@@ -1,5 +1,6 @@
 import datetime as dt
 import logging
+import random
 import uuid
 from dataclasses import dataclass
 from time import perf_counter
@@ -14,8 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.config import settings as app_settings
 from app.db import AsyncSessionLocal
 from app.models import Delivery, DeliveryAttempt, DeliveryStatus, Destination, Event
-
-FIXED_DELAY = 100
 
 logger = logging.getLogger(__name__)
 
@@ -83,8 +82,22 @@ def claimable() -> ColumnElement[bool]:
     )
 
 
+def compute_backoff(
+    attempt_index: int,
+    base: float,
+    factor: float,
+    ceiling: float,
+    rng: Callable[[float, float], float] = random.uniform,
+) -> float:
+    return rng(0, min(base * factor**attempt_index, ceiling))
+
+
 async def deliver(
-    ctx: WorkerContext, *, delivery_id: str, send_fn: SendFn = _real_send
+    ctx: WorkerContext,
+    *,
+    delivery_id: str,
+    send_fn: SendFn = _real_send,
+    rng: Callable[[float, float], float] = random.uniform,
 ) -> None:
     event_delivery_id = uuid.UUID(delivery_id)
 
@@ -158,13 +171,31 @@ async def deliver(
                 locked_until=None,
             ).returning(Delivery.id)
         else:
-            stmt = stmt.values(
-                status=DeliveryStatus.failed,
-                next_attempt_at=func.now() + dt.timedelta(seconds=FIXED_DELAY),
-                attempt_count=snapshot.attempt_count + 1,
-                locked_by=None,
-                locked_until=None,
-            ).returning(Delivery.id)
+            n = row.attempt_count
+            new_count = n + 1
+            if new_count >= app_settings.max_attempts:
+                stmt = stmt.values(
+                    status=DeliveryStatus.dead_letter,
+                    next_attempt_at=None,
+                    attempt_count=snapshot.attempt_count + 1,
+                    locked_by=None,
+                    locked_until=None,
+                ).returning(Delivery.id)
+            else:
+                delay = compute_backoff(
+                    n,
+                    app_settings.backoff_base,
+                    app_settings.backoff_factor,
+                    app_settings.backoff_ceiling,
+                    rng,
+                )
+                stmt = stmt.values(
+                    status=DeliveryStatus.failed,
+                    next_attempt_at=func.now() + dt.timedelta(seconds=delay),
+                    attempt_count=snapshot.attempt_count + 1,
+                    locked_by=None,
+                    locked_until=None,
+                ).returning(Delivery.id)
 
         owner = (await session.execute(stmt)).one_or_none()
 
