@@ -127,24 +127,78 @@ async def deliver(
         dst = await session.get(Destination, row.destination_id)
         event = await session.get(Event, row.event_id)
 
-        if dst is None or event is None:
-            logger.error(
-                "delivery %s references missing dst=%s event=%s",
-                event_delivery_id,
-                row.destination_id,
-                row.event_id,
-            )
-            return
-
-        snapshot = DeliverySnapshot(
-            attempt_count=row.attempt_count,
-            destination_id=row.destination_id,
-            event_id=row.event_id,
-            url=dst.url,
-            payload=event.payload,
-        )
-
         await session.commit()
+
+    if dst is None or event is None:
+        logger.error(
+            "delivery %s references missing dst=%s event=%s",
+            event_delivery_id,
+            row.destination_id,
+            row.event_id,
+        )
+        async with ctx["sessionmaker"]() as session:
+            synthetic_attempt = DeliveryAttempt(
+                delivery_id=event_delivery_id,
+                attempt_number=0,
+                error="destination row missing",
+                duration_ms=0,
+            )
+            owner = (
+                await session.execute(
+                    update(Delivery)
+                    .where(
+                        and_(
+                            Delivery.id == event_delivery_id,
+                            Delivery.locked_by == lock_token,
+                        )
+                    )
+                    .values(
+                        status=DeliveryStatus.dead_letter,
+                        next_attempt_at=None,
+                        locked_by=None,
+                        locked_until=None,
+                    )
+                    .returning(Delivery.id)
+                )
+            ).one_or_none()
+
+            if owner is None:
+                logger.debug(
+                    "delivery %s reclaimed, dropping stale finalize", event_delivery_id
+                )
+                return
+
+            session.add(synthetic_attempt)
+            await session.commit()
+        return
+    elif not dst.active:
+        async with ctx["sessionmaker"]() as session:
+            await session.execute(
+                update(Delivery)
+                .where(
+                    and_(
+                        Delivery.id == event_delivery_id,
+                        Delivery.locked_by == lock_token,
+                    )
+                )
+                .values(
+                    status=DeliveryStatus.pending,
+                    next_attempt_at=func.now()
+                    + dt.timedelta(seconds=app_settings.inactive_hold_seconds),
+                    locked_by=None,
+                    locked_until=None,
+                )
+            )
+            await session.commit()
+        return
+
+    snapshot = DeliverySnapshot(
+        attempt_count=row.attempt_count,
+        destination_id=row.destination_id,
+        event_id=row.event_id,
+        url=dst.url,
+        payload=event.payload,
+    )
 
     result = await send_fn(ctx["client"], snapshot)
 
