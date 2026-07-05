@@ -1,6 +1,5 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
-from typing import cast
 
 import httpx
 from sqlalchemy import select
@@ -8,18 +7,8 @@ from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.models import Delivery, DeliveryStatus
-from app.tasks import DeliveryResult, DeliverySnapshot, WorkerContext, deliver
-from tests.fakes import send_fn
-
-
-def _ctx(*, client, sessionmaker) -> WorkerContext:
-    return cast(WorkerContext, {"client": client, "sessionmaker": sessionmaker})
-
-
-def _ok_result() -> DeliveryResult:
-    return DeliveryResult(
-        success=True, response_status=200, response_body="", error=None, duration_ms=10
-    )
+from app.tasks import DeliveryResult, DeliverySnapshot, deliver
+from tests.fakes import ctx, ok_result, send_fn
 
 
 async def test_claims_pending_row(make_delivery, sessionmaker_factory):
@@ -29,12 +18,12 @@ async def test_claims_pending_row(make_delivery, sessionmaker_factory):
         next_attempt_at=datetime.now(UTC) - timedelta(seconds=1),
     )
 
-    results: list[DeliveryResult] = [_ok_result()]
+    results: list[DeliveryResult] = [ok_result()]
     calls: list[DeliverySnapshot] = []
 
     async with httpx.AsyncClient() as worker_client:
         await deliver(
-            _ctx(client=worker_client, sessionmaker=sessionmaker_factory),
+            ctx(client=worker_client, sessionmaker=sessionmaker_factory),
             delivery_id=str(delivery.id),
             send_fn=send_fn(results, calls),
         )
@@ -66,12 +55,12 @@ async def test_claims_nextattemptat_null_pending_row(
         next_attempt_at=None,
     )
 
-    results: list[DeliveryResult] = [_ok_result()]
+    results: list[DeliveryResult] = [ok_result()]
     calls: list[DeliverySnapshot] = []
 
     async with httpx.AsyncClient() as worker_client:
         await deliver(
-            _ctx(client=worker_client, sessionmaker=sessionmaker_factory),
+            ctx(client=worker_client, sessionmaker=sessionmaker_factory),
             delivery_id=str(delivery.id),
             send_fn=send_fn(results, calls),
         )
@@ -102,12 +91,12 @@ async def test_does_not_claim_future_scheduled_row(make_delivery, sessionmaker_f
         next_attempt_at=next_attempt,
     )
 
-    results: list[DeliveryResult] = [_ok_result()]
+    results: list[DeliveryResult] = [ok_result()]
     calls: list[DeliverySnapshot] = []
 
     async with httpx.AsyncClient() as worker_client:
         await deliver(
-            _ctx(client=worker_client, sessionmaker=sessionmaker_factory),
+            ctx(client=worker_client, sessionmaker=sessionmaker_factory),
             delivery_id=str(delivery.id),
             send_fn=send_fn(results, calls),
         )
@@ -138,12 +127,12 @@ async def test_does_not_claim_already_claimed(make_delivery, sessionmaker_factor
         locked_until=datetime.now(UTC) + timedelta(seconds=settings.lease),
     )
 
-    results: list[DeliveryResult] = [_ok_result()]
+    results: list[DeliveryResult] = [ok_result()]
     calls: list[DeliverySnapshot] = []
 
     async with httpx.AsyncClient() as worker_client:
         await deliver(
-            _ctx(client=worker_client, sessionmaker=sessionmaker_factory),
+            ctx(client=worker_client, sessionmaker=sessionmaker_factory),
             delivery_id=str(delivery.id),
             send_fn=send_fn(results, calls),
         )
@@ -173,12 +162,12 @@ async def test_claims_orphaned_row(make_delivery, sessionmaker_factory):
         updated_at=datetime.now(UTC) - timedelta(seconds=settings.lease * 5),
     )
 
-    results: list[DeliveryResult] = [_ok_result()]
+    results: list[DeliveryResult] = [ok_result()]
     calls: list[DeliverySnapshot] = []
 
     async with httpx.AsyncClient() as worker_client:
         await deliver(
-            _ctx(client=worker_client, sessionmaker=sessionmaker_factory),
+            ctx(client=worker_client, sessionmaker=sessionmaker_factory),
             delivery_id=str(delivery.id),
             send_fn=send_fn(results, calls),
         )
@@ -207,20 +196,20 @@ async def test_atomic_claim_under_concurrency(make_delivery, sessionmaker_factor
         next_attempt_at=datetime.now(UTC),
     )
 
-    results: list[DeliveryResult] = [_ok_result(), _ok_result()]
+    results: list[DeliveryResult] = [ok_result(), ok_result()]
     calls: list[DeliverySnapshot] = []
 
     async with httpx.AsyncClient() as worker_client:
-        ctx = _ctx(client=worker_client, sessionmaker=sessionmaker_factory)
+        c = ctx(client=worker_client, sessionmaker=sessionmaker_factory)
 
         await asyncio.gather(
             deliver(
-                ctx,
+                c,
                 delivery_id=str(delivery.id),
                 send_fn=send_fn(results, calls),
             ),
             deliver(
-                ctx,
+                c,
                 delivery_id=str(delivery.id),
                 send_fn=send_fn(results, calls),
             ),
@@ -252,12 +241,12 @@ async def test_claims_failed_row(make_delivery, sessionmaker_factory):
         updated_at=datetime.now(UTC) - past_lease,
     )
 
-    results: list[DeliveryResult] = [_ok_result()]
+    results: list[DeliveryResult] = [ok_result()]
     calls: list[DeliverySnapshot] = []
 
     async with httpx.AsyncClient() as worker_client:
         await deliver(
-            _ctx(client=worker_client, sessionmaker=sessionmaker_factory),
+            ctx(client=worker_client, sessionmaker=sessionmaker_factory),
             delivery_id=str(delivery.id),
             send_fn=send_fn(results, calls),
         )
