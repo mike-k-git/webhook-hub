@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from app.db import SessionDep
+from app.deps import SessionDep
 from app.models import Destination, Route, Source
 from app.schemas import RouteCreate, RouteRead
 

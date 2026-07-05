@@ -1,3 +1,4 @@
+from app.deps import get_queue
 from app.main import app
 from app.models import DeliveryStatus
 from tests.fakes import FakeQueue, FakeRaisingQueue
@@ -70,73 +71,64 @@ async def test_ingest_enqueue(client, source, signed):
     await _setup_routes(client, source)
     raw, headers = signed({"type": "payment.succeeded"}, key="evt_1")
 
-    app.state.queue = FakeQueue()
+    q = FakeQueue()
+    app.dependency_overrides[get_queue] = lambda: q
+    r = await client.post(f"/ingest/{source}", content=raw, headers=headers)
+    assert r.status_code == 202
+    event_id = r.json()["event_id"]
 
-    try:
-        r = await client.post(f"/ingest/{source}", content=raw, headers=headers)
-        assert r.status_code == 202
-        event_id = r.json()["event_id"]
+    r2 = await client.get(f"/events/{event_id}")
+    assert r2.status_code == 200
 
-        r2 = await client.get(f"/events/{event_id}")
-        assert r2.status_code == 200
-
-        event_details = r2.json()
-        assert event_details["id"] == event_id
-        assert {e["delivery_id"] for e in app.state.queue.enqueued} == {
-            event_details["deliveries"][0]["id"],
-            event_details["deliveries"][1]["id"],
-        }
-    finally:
-        del app.state.queue
+    event_details = r2.json()
+    assert event_details["id"] == event_id
+    assert {e["delivery_id"] for e in q.enqueued} == {
+        event_details["deliveries"][0]["id"],
+        event_details["deliveries"][1]["id"],
+    }
 
 
 async def test_ingest_failed_enqueue(client, source, signed):
     await _setup_routes(client, source)
     raw, headers = signed({"type": "payment.succeeded"}, key="evt_1")
 
-    app.state.queue = FakeRaisingQueue(fail_for=set(), fail_all=True)
+    q = FakeRaisingQueue(fail_for=set(), fail_all=True)
+    app.dependency_overrides[get_queue] = lambda: q
+    r = await client.post(f"/ingest/{source}", content=raw, headers=headers)
+    assert r.status_code == 202
+    event_id = r.json()["event_id"]
 
-    try:
-        r = await client.post(f"/ingest/{source}", content=raw, headers=headers)
-        assert r.status_code == 202
-        event_id = r.json()["event_id"]
+    r2 = await client.get(f"/events/{event_id}")
+    assert r2.status_code == 200
 
-        r2 = await client.get(f"/events/{event_id}")
-        assert r2.status_code == 200
-
-        event_details = r2.json()
-        assert event_details["id"] == event_id
-        assert event_details["deliveries"][0]["status"] == DeliveryStatus.pending
-        assert event_details["deliveries"][1]["status"] == DeliveryStatus.pending
-        assert app.state.queue.enqueued == []
-    finally:
-        del app.state.queue
+    event_details = r2.json()
+    assert event_details["id"] == event_id
+    assert event_details["deliveries"][0]["status"] == DeliveryStatus.pending
+    assert event_details["deliveries"][1]["status"] == DeliveryStatus.pending
+    assert q.enqueued == []
 
 
 async def test_ingest_no_enqueue_on_duplicate(client, source, signed):
     await _setup_routes(client, source)
     raw, headers = signed({"type": "payment.succeeded"}, key="evt_1")
 
-    app.state.queue = FakeQueue()
+    q = FakeQueue()
+    app.dependency_overrides[get_queue] = lambda: q
+    r = await client.post(f"/ingest/{source}", content=raw, headers=headers)
+    assert r.status_code == 202
+    event_id = r.json()["event_id"]
 
-    try:
-        r = await client.post(f"/ingest/{source}", content=raw, headers=headers)
-        assert r.status_code == 202
-        event_id = r.json()["event_id"]
+    r2 = await client.post(f"/ingest/{source}", content=raw, headers=headers)
+    assert r2.status_code == 200
+    assert event_id == r2.json()["event_id"]
 
-        r2 = await client.post(f"/ingest/{source}", content=raw, headers=headers)
-        assert r2.status_code == 200
-        assert event_id == r2.json()["event_id"]
+    r3 = await client.get(f"/events/{event_id}")
+    assert r3.status_code == 200
 
-        r3 = await client.get(f"/events/{event_id}")
-        assert r3.status_code == 200
-
-        event_details = r3.json()
-        assert event_details["id"] == event_id
-        assert {e["delivery_id"] for e in app.state.queue.enqueued} == {
-            event_details["deliveries"][0]["id"],
-            event_details["deliveries"][1]["id"],
-        }
-        assert len(app.state.queue.enqueued) == 2
-    finally:
-        del app.state.queue
+    event_details = r3.json()
+    assert event_details["id"] == event_id
+    assert {e["delivery_id"] for e in q.enqueued} == {
+        event_details["deliveries"][0]["id"],
+        event_details["deliveries"][1]["id"],
+    }
+    assert len(q.enqueued) == 2

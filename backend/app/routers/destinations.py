@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
-from app.db import SessionDep
+from app.deps import SessionDep
 from app.models import Destination
 from app.schemas import DestinationCreate, DestinationRead, DestinationUpdate
 
