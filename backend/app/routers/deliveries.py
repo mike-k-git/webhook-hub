@@ -1,3 +1,4 @@
+import logging
 import uuid
 from typing import Annotated
 
@@ -5,15 +6,17 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import and_, select, update
 from sqlalchemy.orm import selectinload
 
-from app.deps import SessionDep
+from app.deps import QueueDep, SessionDep
 from app.models import Delivery, DeliveryStatus
 from app.schemas import DeliveryInboxItem, DeliveryRead, EventRead
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/deliveries", tags=["deliveries"])
 
 
 @router.post("/{delivery_id}/replay", status_code=status.HTTP_202_ACCEPTED)
-async def replay(delivery_id: uuid.UUID, session: SessionDep):
+async def replay(delivery_id: uuid.UUID, session: SessionDep, queue: QueueDep):
     owner = (
         await session.execute(
             update(Delivery)
@@ -35,6 +38,16 @@ async def replay(delivery_id: uuid.UUID, session: SessionDep):
 
     if owner is not None:
         await session.commit()
+        try:
+            await queue.enqueue(
+                "deliver",
+                delivery_id=str(delivery_id),
+                key=f"deliver:{delivery_id!s}",
+            )
+        except Exception:
+            logger.warning(
+                "replay enqueue failed for %s; sweeper will recover", delivery_id
+            )
         return
 
     delivery = (
