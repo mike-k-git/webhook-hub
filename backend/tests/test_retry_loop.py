@@ -97,8 +97,11 @@ async def test_retry_loop(client, source, sessionmaker_factory, signed):
 
     c = ctx(queue=q, sessionmaker=sessionmaker_factory)
 
+    before = len(q.enqueued)
+
     await sweep(c)
 
+    assert len(q.enqueued) == before + 1
     assert event_details["deliveries"][0]["id"] in {
         e["delivery_id"] for e in q.enqueued
     }
