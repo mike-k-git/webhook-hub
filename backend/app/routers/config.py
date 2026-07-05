@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from app.db import SessionDep
+from app.deps import SessionDep
 from app.models import Source
 from app.schemas import SourceCreate, SourceRead
 

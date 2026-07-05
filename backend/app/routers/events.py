@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select, tuple_
 from sqlalchemy.orm import selectinload
 
-from app.db import SessionDep
+from app.deps import SessionDep
 from app.models import Delivery, DeliveryStatus, Event, Source
 from app.pagination import CursorError, decode_cursor, encode_cursor
 from app.queries import event_rollups

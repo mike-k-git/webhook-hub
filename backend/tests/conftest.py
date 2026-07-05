@@ -7,7 +7,8 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.db import Base, get_session
+from app.db import Base
+from app.deps import get_queue, get_session
 from app.main import app
 from app.models import (
     Delivery,
@@ -18,6 +19,7 @@ from app.models import (
     Source,
 )
 from app.security import sign
+from tests.fakes import FakeQueue
 
 TEST_DATABASE_URL = os.environ["TEST_DATABASE_URL"]
 
@@ -55,7 +57,10 @@ async def client(db_engine):
         async with maker() as session:
             yield session
 
+    override_get_queue = FakeQueue()
+
     app.dependency_overrides[get_session] = override_get_session
+    app.dependency_overrides[get_queue] = lambda: override_get_queue
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac

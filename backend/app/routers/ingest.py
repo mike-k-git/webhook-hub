@@ -8,7 +8,7 @@ from fastapi import APIRouter, Header, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from app.db import SessionDep
+from app.deps import QueueDep, SessionDep
 from app.models import Delivery, Event, Route, Source
 from app.schemas import IngestAck
 from app.security import verify
@@ -27,6 +27,7 @@ async def ingest(
     source_name: str,
     request: Request,
     session: SessionDep,
+    queue: QueueDep,
     response: Response,
     x_webhook_signature: Annotated[str | None, Header()] = None,
     idempotency_key: Annotated[str | None, Header()] = None,
@@ -98,9 +99,7 @@ async def ingest(
 
     try:
         for delivery in deliveries:
-            await request.app.state.queue.enqueue(
-                "deliver", delivery_id=str(delivery.id)
-            )
+            await queue.enqueue("deliver", delivery_id=str(delivery.id))
     except Exception:
         logger.warning("enqueue failed for event %s; sweeper will recover", event.id)
     return IngestAck(event_id=event.id)

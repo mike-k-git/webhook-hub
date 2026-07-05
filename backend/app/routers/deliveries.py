@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import and_, select, update
 from sqlalchemy.orm import selectinload
 
-from app.db import SessionDep
+from app.deps import SessionDep
 from app.models import Delivery, DeliveryStatus
 from app.schemas import DeliveryInboxItem, DeliveryRead, EventRead
 
