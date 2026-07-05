@@ -95,14 +95,12 @@ async def test_failure_is_skipped(make_delivery, sessionmaker_factory):
     first = await make_delivery(
         status=DeliveryStatus.pending,
         attempt_count=0,
-        next_attempt_at=datetime.now(UTC)
-        - timedelta(seconds=settings.redispatch_limit / 2),
+        next_attempt_at=datetime.now(UTC) - timedelta(seconds=settings.lease / 2),
     )
     second = await make_delivery(
         status=DeliveryStatus.pending,
         attempt_count=0,
-        next_attempt_at=datetime.now(UTC)
-        - timedelta(seconds=settings.redispatch_limit / 2),
+        next_attempt_at=datetime.now(UTC) - timedelta(seconds=settings.lease / 2),
     )
 
     fake_raising_queue = FakeRaisingQueue(fail_for={str(first.id)})
