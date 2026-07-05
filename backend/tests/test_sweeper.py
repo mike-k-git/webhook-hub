@@ -1,16 +1,9 @@
 from datetime import UTC, datetime, timedelta
-from typing import cast
 
 from app.config import settings
 from app.models import DeliveryStatus
-from app.tasks import WorkerContext, sweep
-from tests.fakes import FakeQueue, FakeRaisingQueue, FakeWorker
-
-
-def _ctx(*, queue, sessionmaker) -> WorkerContext:
-    return cast(
-        WorkerContext, {"worker": FakeWorker(queue), "sessionmaker": sessionmaker}
-    )
+from app.tasks import sweep
+from tests.fakes import FakeQueue, FakeRaisingQueue, ctx
 
 
 async def test_sweep_mix_of_rows(make_delivery, sessionmaker_factory):
@@ -63,9 +56,9 @@ async def test_sweep_mix_of_rows(make_delivery, sessionmaker_factory):
     )
 
     fake_queue = FakeQueue()
-    ctx = _ctx(queue=fake_queue, sessionmaker=sessionmaker_factory)
+    c = ctx(queue=fake_queue, sessionmaker=sessionmaker_factory)
 
-    await sweep(ctx)
+    await sweep(c)
 
     assert {e["delivery_id"] for e in fake_queue.enqueued} == {
         str(pending.id),
@@ -84,9 +77,9 @@ async def test_bounded_batch(make_delivery, sessionmaker_factory):
         )
 
     fake_queue = FakeQueue()
-    ctx = _ctx(queue=fake_queue, sessionmaker=sessionmaker_factory)
+    c = ctx(queue=fake_queue, sessionmaker=sessionmaker_factory)
 
-    await sweep(ctx)
+    await sweep(c)
 
     assert len(fake_queue.enqueued) == settings.redispatch_limit
 
@@ -104,8 +97,8 @@ async def test_failure_is_skipped(make_delivery, sessionmaker_factory):
     )
 
     fake_raising_queue = FakeRaisingQueue(fail_for={str(first.id)})
-    ctx = _ctx(queue=fake_raising_queue, sessionmaker=sessionmaker_factory)
-    await sweep(ctx)
+    c = ctx(queue=fake_raising_queue, sessionmaker=sessionmaker_factory)
+    await sweep(c)
 
     assert len(fake_raising_queue.enqueued) == 1
     assert fake_raising_queue.enqueued[0]["delivery_id"] == str(second.id)

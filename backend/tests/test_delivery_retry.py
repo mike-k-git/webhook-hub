@@ -1,5 +1,4 @@
 from datetime import UTC, datetime, timedelta
-from typing import cast
 
 import httpx
 from pytest import approx
@@ -11,75 +10,25 @@ from app.models import Delivery, DeliveryStatus, Destination
 from app.tasks import (
     DeliveryResult,
     DeliverySnapshot,
-    WorkerContext,
     compute_backoff,
     deliver,
     sweep,
 )
-from tests.fakes import FakeQueue, FakeWorker, send_fn
-
-
-def _ctx(*, queue=None, client=None, sessionmaker=None) -> WorkerContext:
-    worker_context = {}
-    if queue is not None:
-        worker_context["worker"] = FakeWorker(queue)
-    if client is not None:
-        worker_context["client"] = client
-    if sessionmaker is not None:
-        worker_context["sessionmaker"] = sessionmaker
-    return cast(WorkerContext, worker_context)
-
-
-def _fail_result() -> DeliveryResult:
-    return DeliveryResult(
-        success=False,
-        response_status=500,
-        error=None,
-        duration_ms=10,
-    )
-
-
-def _ok_result() -> DeliveryResult:
-    return DeliveryResult(
-        success=True,
-        response_status=200,
-        error=None,
-        duration_ms=10,
-    )
-
-
-def _reclaiming_send(sessionmaker_factory, delivery, a_calls, b_calls):
-
-    async def a_send(
-        client: httpx.AsyncClient, snapshot: DeliverySnapshot
-    ) -> DeliveryResult:
-        a_calls.append(snapshot)
-        async with sessionmaker_factory() as s:
-            await s.execute(
-                update(Delivery)
-                .where(Delivery.id == delivery.id)
-                .values(locked_until=datetime.now(UTC) - timedelta(seconds=1))
-            )
-            await s.commit()
-        await deliver(
-            _ctx(client=client, sessionmaker=sessionmaker_factory),
-            delivery_id=str(delivery.id),
-            send_fn=send_fn([_ok_result()], b_calls),
-        )
-        return _fail_result()
-
-    return a_send
-
-
-def _rng(a: float, b: float) -> float:
-    return b - a
+from tests.fakes import (
+    FakeQueue,
+    ctx,
+    fail_result,
+    fake_rng,
+    reclaiming_send,
+    send_fn,
+)
 
 
 def test_backoff_schedule():
     pre_computed_backoff = [2, 4, 8, 16, 32, 60, 60]
 
     for i in range(7):
-        assert compute_backoff(i, 2, 2, 60, _rng) == pre_computed_backoff[i]
+        assert compute_backoff(i, 2, 2, 60, fake_rng) == pre_computed_backoff[i]
 
 
 async def test_cap_boundary_last_retry_stays_failed(
@@ -92,12 +41,12 @@ async def test_cap_boundary_last_retry_stays_failed(
         next_attempt_at=datetime.now(UTC) - timedelta(seconds=1),
     )
 
-    results: list[DeliveryResult] = [_fail_result()]
+    results: list[DeliveryResult] = [fail_result()]
     calls: list[DeliverySnapshot] = []
 
     async with httpx.AsyncClient() as worker_client:
         await deliver(
-            _ctx(client=worker_client, sessionmaker=sessionmaker_factory),
+            ctx(client=worker_client, sessionmaker=sessionmaker_factory),
             delivery_id=str(delivery.id),
             send_fn=send_fn(results, calls),
         )
@@ -128,12 +77,12 @@ async def test_cap_boundary_flips_to_dead_letter(
         next_attempt_at=datetime.now(UTC) - timedelta(seconds=1),
     )
 
-    results: list[DeliveryResult] = [_fail_result()]
+    results: list[DeliveryResult] = [fail_result()]
     calls: list[DeliverySnapshot] = []
 
     async with httpx.AsyncClient() as worker_client:
         await deliver(
-            _ctx(client=worker_client, sessionmaker=sessionmaker_factory),
+            ctx(client=worker_client, sessionmaker=sessionmaker_factory),
             delivery_id=str(delivery.id),
             send_fn=send_fn(results, calls),
         )
@@ -162,9 +111,9 @@ async def test_terminal_is_inert(make_delivery, sessionmaker_factory):
     )
 
     fake_queue = FakeQueue()
-    ctx = _ctx(queue=fake_queue, sessionmaker=sessionmaker_factory)
+    c = ctx(queue=fake_queue, sessionmaker=sessionmaker_factory)
 
-    await sweep(ctx)
+    await sweep(c)
 
     assert len(fake_queue.enqueued) == 0
 
@@ -194,9 +143,9 @@ async def test_fence_drops_stale_finalize(make_delivery, sessionmaker_factory):
 
     async with httpx.AsyncClient() as client:
         await deliver(
-            _ctx(client=client, sessionmaker=sessionmaker_factory),
+            ctx(client=client, sessionmaker=sessionmaker_factory),
             delivery_id=str(delivery.id),
-            send_fn=_reclaiming_send(sessionmaker_factory, delivery, a_calls, b_calls),
+            send_fn=reclaiming_send(sessionmaker_factory, delivery, a_calls, b_calls),
         )
 
     async with sessionmaker_factory() as check:
@@ -226,9 +175,9 @@ async def test_fence_orphaned_double_dispatch(make_delivery, sessionmaker_factor
 
     async with httpx.AsyncClient() as client:
         await deliver(
-            _ctx(client=client, sessionmaker=sessionmaker_factory),
+            ctx(client=client, sessionmaker=sessionmaker_factory),
             delivery_id=str(delivery.id),
-            send_fn=_reclaiming_send(sessionmaker_factory, delivery, a_calls, b_calls),
+            send_fn=reclaiming_send(sessionmaker_factory, delivery, a_calls, b_calls),
         )
 
     async with sessionmaker_factory() as check:
@@ -267,9 +216,9 @@ async def test_missing_destination_flips_to_dead_letter(
 
     async with httpx.AsyncClient() as client:
         await deliver(
-            _ctx(client=client, sessionmaker=sessionmaker_factory),
+            ctx(client=client, sessionmaker=sessionmaker_factory),
             delivery_id=str(delivery.id),
-            send_fn=send_fn([_fail_result()], calls),
+            send_fn=send_fn([fail_result()], calls),
         )
 
     async with sessionmaker_factory() as check:
@@ -312,7 +261,7 @@ async def test_destination_is_not_active(
 
     async with httpx.AsyncClient() as client:
         await deliver(
-            _ctx(client=client, sessionmaker=sessionmaker_factory),
+            ctx(client=client, sessionmaker=sessionmaker_factory),
             delivery_id=str(delivery.id),
             send_fn=send_fn([], calls),
         )
