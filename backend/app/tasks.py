@@ -282,9 +282,7 @@ async def sweep(ctx: WorkerContext) -> None:
         queue = ctx["worker"].queue
         for did in redispatch:
             try:
-                await queue.enqueue(
-                    "deliver", delivery_id=str(did), key=f"deliver:{did}"
-                )
+                await queue.enqueue("deliver", delivery_id=str(did))
             except Exception:
                 logger.exception("failed to enqueue delivery %s", did)
 

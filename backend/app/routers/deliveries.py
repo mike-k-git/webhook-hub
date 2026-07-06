@@ -39,11 +39,7 @@ async def replay(delivery_id: uuid.UUID, session: SessionDep, queue: QueueDep):
     if owner is not None:
         await session.commit()
         try:
-            await queue.enqueue(
-                "deliver",
-                delivery_id=str(delivery_id),
-                key=f"deliver:{delivery_id!s}",
-            )
+            await queue.enqueue("deliver", delivery_id=str(delivery_id))
         except Exception:
             logger.warning(
                 "replay enqueue failed for %s; sweeper will recover", delivery_id
