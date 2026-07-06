@@ -14,7 +14,7 @@ A handful of decisions shape the whole thing. They're all on purpose.
 
 **At-least-once, and honest about it.** Duplicates are caught at ingest with a unique constraint on `(source, idempotency_key)`. Each delivery is claimed atomically before any work starts, so two workers can't run the same one. Claims expire on a lease and carry a fencing token, so a worker that stalls, gets replaced, and wakes up later writes nothing. Delivery can still duplicate when things go wrong. That's expected, and destinations should handle it. The system doesn't claim exactly-once, because it can't.
 
-**Retries back off, and they end.** A failed delivery is rescheduled with exponential backoff and jitter, so a struggling destination gets breathing room instead of a stampede. Attempts are capped. Whatever runs out goes to dead-letter and waits to be replayed, instead of retrying forever. And a destination you've switched off doesn't burn attempts at all. Its deliveries are held, then flow again the moment it's back on.
+**Retries back off, and they end.** A failed delivery is rescheduled with exponential backoff and jitter, so a struggling destination gets breathing room instead of a stampede. Attempts are capped. Whatever runs out goes to dead-letter and waits to be replayed, instead of retrying forever. Replay buys exactly one new attempt: succeed and it's delivered, fail and it's back in the inbox right away — not off in the background running another backoff ladder. The operator stays in the loop. And a destination you've switched off doesn't burn attempts at all. Its deliveries are held, then flow again the moment it's back on.
 
 **Destinations are locked in at ingest.** When an event arrives, its list of destinations is frozen. Replay re-runs that same list. The delivery history stays an honest record of what happened.
 
@@ -31,14 +31,14 @@ cp backend/.env.example backend/.env   # set POSTGRES_* and the DSNs
 docker compose up --build
 ```
 
-That starts Postgres, Redis, the API on `:8000`, and the worker. From there you can configure sources, destinations, and routes. Send webhooks to `POST /ingest/{source}`. Read back the event feed, the full detail for any event including its delivery attempts, and the dead-letter inbox.
+That starts Postgres, Redis, the API on `:8000`, and the worker. From there you can configure sources, destinations, and routes. Send webhooks to `POST /ingest/{source}`. Read back the event feed, the full detail for any event including its delivery attempts, and the dead-letter inbox — and send anything in it back through the pipeline with `POST /deliveries/{id}/replay`.
 
 ## Status
 
-Still being built, but the whole backend delivery story now runs end to end. An event comes in, gets verified and stored, fans out to every matched destination, and gets delivered with real retry semantics: exponential backoff with jitter, a cap on attempts, and dead-letter at the end of the line. The claim and finalize path is fenced, so even a worker that loses its lease mid-flight can't corrupt the record. A sweeper recovers anything a lost enqueue or a crash leaves stranded. Every tunable, from the lease to the backoff curve to the attempt cap, is a validated setting instead of a constant buried in the worker. The state machine is tested end to end.
+Still being built, but the backend is feature-complete: ingest with signature checks and dedupe, routing with fan-out, delivery with backoff, a cap, and dead-lettering — and now replay. `POST /deliveries/{id}/replay` sends a dead-lettered delivery back through the exact same path: same claim, same worker, same ledger. Nothing about replay is a special case, which is the point. The state machine and the replay contract are tested end to end.
 
-Next up is replay: one click to send anything in dead-letter back through the same path.
+Next up is the React dashboard.
 
 ## Planned
 
-Failed deliveries become replayable in one click, reusing the same delivery path. A React dashboard will sit on top of the read API for inspecting payloads and replaying failures. After that, a one-command deploy to Fly.io or Railway. Further out, the hub will reshape payloads per route and sign its own outbound requests.
+A React dashboard will sit on top of the read API for inspecting payloads and replaying failures in one click. After that, a one-command deploy to Fly.io or Railway. Further out, the hub will reshape payloads per route and sign its own outbound requests.
