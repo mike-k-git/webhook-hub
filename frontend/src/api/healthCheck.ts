@@ -1,5 +1,13 @@
-export const healthCheck = async () => {
-  const healthCheckResponse = await fetch("/api/healthz");
-  const status = await healthCheckResponse.json();
-  return status;
-};
+import { useQuery } from "@tanstack/react-query";
+import { client } from "./client";
+
+export function useHealthCheck() {
+  return useQuery({
+    queryKey: ["health"],
+    queryFn: async () => {
+      const { data, error } = await client.GET("/healthz");
+      if (error) throw error;
+      return data;
+    },
+  });
+}
