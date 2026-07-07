@@ -1,7 +1,7 @@
 import { Link, Outlet, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { healthCheck } from "../api/healthCheck";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useHealthCheck } from "../api/healthCheck";
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -10,11 +10,7 @@ export const Route = createRootRoute({
 const queryClient = new QueryClient();
 
 function HealthCheckBadge() {
-  const { isPending, isError, data } = useQuery({
-    queryKey: ["healthz"],
-    queryFn: healthCheck,
-    refetchInterval: 5_000,
-  });
+  const { isPending, isError, data } = useHealthCheck();
   if (isPending) {
     return (
       <span className="inline-flex items-center rounded-md bg-yellow-400/10 px-2 py-1 text-xs font-medium text-yellow-500 inset-ring inset-ring-yellow-400/20">
