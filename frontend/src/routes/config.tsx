@@ -16,7 +16,9 @@ function Sources() {
       <h2>Sources:</h2>
       <ol>
         {data.map((s) => (
-          <li key={s.id}>{s.id}</li>
+          <li key={s.id}>
+            {s.id} {s.name}
+          </li>
         ))}
       </ol>
     </div>

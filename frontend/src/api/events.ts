@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { client } from "./client";
 import type { components } from "./schema";
 
@@ -18,16 +18,19 @@ export function useEvent(event_id: string) {
 export function useEvents(
   source?: string,
   status?: components["schemas"]["DeliveryStatus"],
-  limit?: number,
+  limit: number = 50,
 ) {
-  return useQuery({
-    queryKey: ["events", source, status, limit],
-    queryFn: async () => {
+  return useInfiniteQuery({
+    queryKey: ["events", source, status],
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
       const { data, error } = await client.GET("/events", {
-        params: { query: { source, status, limit } },
+        params: { query: { source, status, limit, cursor: pageParam } },
       });
       if (error) throw error;
       return data;
     },
+    getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+    refetchInterval: 5_000,
   });
 }
