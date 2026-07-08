@@ -12,6 +12,7 @@ export function useEvent(event_id: string) {
       if (error) throw error;
       return data;
     },
+    refetchInterval: 5_000,
   });
 }
 
@@ -21,7 +22,7 @@ export function useEvents(
   limit: number = 50,
 ) {
   return useInfiniteQuery({
-    queryKey: ["events", source, status],
+    queryKey: ["events", source, status, limit],
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
       const { data, error } = await client.GET("/events", {

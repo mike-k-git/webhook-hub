@@ -12,10 +12,9 @@ export function useInbox() {
   });
 }
 
-export function useReplay(delivery_id: string) {
+export function useReplay() {
   return useMutation({
-    mutationKey: ["inbox"],
-    mutationFn: async () => {
+    mutationFn: async (delivery_id: string) => {
       const { data, error } = await client.POST("/deliveries/{delivery_id}/replay", {
         params: { path: { delivery_id } },
       });

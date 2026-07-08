@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEvents } from "../api/events";
 import { z } from "zod";
 import { Badge } from "../components/badge";
@@ -31,23 +31,28 @@ function Events() {
         {data.pages
           .flatMap((p) => p.items)
           .map((e) => (
-            <li
-              key={e.id}
-              className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50"
-            >
-              <div className="min-w-0">
-                <p className="truncate font-mono text-sm text-gray-900">{e.id}</p>
-                <p className="text-xs text-gray-500">{new Date(e.received_at).toLocaleString()}</p>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {e.rollup.total > 0 && (
-                  <>
-                    {Object.entries(e.rollup.counts_by_status).map(([deliveryStatus, count]) => (
-                      <Badge key={deliveryStatus} status={deliveryStatus} count={count} />
-                    ))}
-                  </>
-                )}
-              </div>
+            <li key={e.id} className="hover:bg-gray-50">
+              <Link
+                to="/events/$id"
+                params={{ id: e.id }}
+                className="flex items-center justify-between gap-4 px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-mono text-sm text-gray-900">{e.id}</p>
+                  <p className="text-xs text-gray-500">
+                    {new Date(e.received_at).toLocaleString()}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {e.rollup.total > 0 && (
+                    <>
+                      {Object.entries(e.rollup.counts_by_status).map(([deliveryStatus, count]) => (
+                        <Badge key={deliveryStatus} status={deliveryStatus} count={count} />
+                      ))}
+                    </>
+                  )}
+                </div>
+              </Link>
             </li>
           ))}
       </ul>
