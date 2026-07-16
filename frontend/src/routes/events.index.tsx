@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEvents } from "../api/events";
 import { z } from "zod";
-import { Badge } from "../components/badge";
+import { Badge } from "../components/Badge";
 
 const eventFilters = z.object({
   source: z.string().optional(),
