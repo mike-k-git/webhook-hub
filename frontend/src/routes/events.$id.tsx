@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEvent } from "../api/events";
 import { useDestinations } from "../api/config";
 import { useMemo } from "react";
-import { Badge } from "../components/badge";
+import { Badge } from "../components/Badge";
 import { useReplay } from "../api/inbox";
 import { useQueryClient } from "@tanstack/react-query";
 
