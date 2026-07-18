@@ -1,16 +1,8 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type React from "react";
 import { server } from "../mocks/server";
 import { http, HttpResponse } from "msw";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useEvents } from "./events";
-
-function wrapper({ children }: { children: React.ReactNode }) {
-  const qc = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
-}
+import { wrapper } from "../test/test-utils";
 
 test("cursor pager", async () => {
   const requestedCursors: (string | null)[] = [];
