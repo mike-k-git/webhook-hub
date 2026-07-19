@@ -2,10 +2,9 @@ import { useMemo } from "react";
 import { useDestinations } from "../api/config";
 import { useInbox, useReplay } from "../api/inbox";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNotification } from "../hooks/useNotification";
-import { Toast } from "../components/Toast";
 import { ApiError } from "../api/errors";
 import { Badge } from "../components/Badge";
+import { toast } from "sonner";
 
 export function Inbox() {
   const { isPending, isError, data } = useInbox();
@@ -14,7 +13,6 @@ export function Inbox() {
     () => new Map((destinations ?? []).map((d) => [d.id, d])),
     [destinations],
   );
-  const { notification, notify } = useNotification();
   const replay = useReplay();
   const qc = useQueryClient();
 
@@ -23,7 +21,6 @@ export function Inbox() {
   if (data.length === 0) return <h1>No dead-lettered deliveries</h1>;
   return (
     <div>
-      <Toast notification={notification} />
       <ol className="divide-y divide-gray-200 rounded-lg border border-gray-200">
         {data.map((item) => {
           const dst = dstById.get(item.delivery.destination_id);
@@ -41,9 +38,9 @@ export function Inbox() {
                     onSuccess: () => qc.invalidateQueries({ queryKey: ["inbox"] }),
                     onError: (err) => {
                       if (err instanceof ApiError && err.status === 409) {
-                        notify({ type: "INFO", message: err.message });
+                        toast.info(err.message);
                       } else {
-                        notify({ type: "ERROR", message: err.message });
+                        toast.error(err.message);
                       }
                       qc.invalidateQueries({ queryKey: ["inbox"] });
                     },

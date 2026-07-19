@@ -6,8 +6,12 @@ export function useInbox() {
   return useQuery({
     queryKey: ["inbox"],
     queryFn: async () => {
-      const { data, error } = await client.GET("/deliveries/dead_letter", {});
-      if (error) throw error;
+      const { data, error, response } = await client.GET("/deliveries/dead_letter", {});
+      if (error)
+        throw new ApiError(
+          response.status,
+          typeof error.detail === "string" ? error.detail : "dead letters load failed",
+        );
       return data;
     },
     refetchInterval: 5_000,

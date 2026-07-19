@@ -7,8 +7,8 @@ export function useSources() {
   return useQuery({
     queryKey: ["sources"],
     queryFn: async () => {
-      const { data, error } = await client.GET("/sources", {});
-      if (error) throw error;
+      const { data, response } = await client.GET("/sources", {});
+      if (!response.ok || !data) throw new ApiError(response.status, "sources load failed");
       return data;
     },
   });
@@ -32,8 +32,8 @@ export function useDestinations() {
   return useQuery({
     queryKey: ["destinations"],
     queryFn: async () => {
-      const { data, error } = await client.GET("/destinations", {});
-      if (error) throw error;
+      const { data, response } = await client.GET("/destinations", {});
+      if (!response.ok || !data) throw new ApiError(response.status, "destinations load failed");
       return data;
     },
   });
@@ -76,8 +76,8 @@ export function useRoutes() {
   return useQuery({
     queryKey: ["routes"],
     queryFn: async () => {
-      const { data, error } = await client.GET("/routes", {});
-      if (error) throw error;
+      const { data, response } = await client.GET("/routes", {});
+      if (!response.ok || !data) throw new ApiError(response.status, "routes load failed");
       return data;
     },
   });

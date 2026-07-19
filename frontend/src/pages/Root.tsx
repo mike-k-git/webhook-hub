@@ -2,6 +2,7 @@ import { ModeToggle } from "@/components/mode-toggle";
 import { useHealthCheck } from "../api/healthCheck";
 import { Link, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+import { Toaster } from "@/components/ui/sonner";
 
 function HealthCheckBadge() {
   const { isPending, isError, data } = useHealthCheck();
@@ -30,6 +31,7 @@ function HealthCheckBadge() {
 export function RootComponent() {
   return (
     <>
+      <Toaster />
       <div className="p-2 flex gap-2 text-lg border-b">
         <ModeToggle />
         <HealthCheckBadge />

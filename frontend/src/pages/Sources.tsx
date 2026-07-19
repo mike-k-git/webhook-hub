@@ -1,13 +1,11 @@
 import { useState } from "react";
 import { useCreateSource, useSources } from "../api/config";
-import { useNotification } from "../hooks/useNotification";
 import { useQueryClient } from "@tanstack/react-query";
-import { Toast } from "../components/Toast";
+import { toast } from "sonner";
 
 export function Sources() {
   const { isPending, isError, data } = useSources();
   const createSource = useCreateSource();
-  const { notification, notify } = useNotification();
   const [name, setName] = useState("");
   const [secret, setSecret] = useState("");
   const qc = useQueryClient();
@@ -16,7 +14,6 @@ export function Sources() {
   if (isError) return <h1>Error</h1>;
   return (
     <div>
-      <Toast notification={notification} />
       <h2>Sources:</h2>
       <form
         onSubmit={(e) => {
@@ -30,7 +27,7 @@ export function Sources() {
                 setSecret("");
               },
               onError: (err) => {
-                notify({ type: "ERROR", message: err.message });
+                toast.error(err.message);
               },
             },
           );
