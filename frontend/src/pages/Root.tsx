@@ -1,3 +1,4 @@
+import { ModeToggle } from "@/components/mode-toggle";
 import { useHealthCheck } from "../api/healthCheck";
 import { Link, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
@@ -30,6 +31,7 @@ export function RootComponent() {
   return (
     <>
       <div className="p-2 flex gap-2 text-lg border-b">
+        <ModeToggle />
         <HealthCheckBadge />
         <Link
           to="/events"

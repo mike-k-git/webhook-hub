@@ -5,6 +5,23 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>frontend</title>
+    <script>
+      (() => {
+        const theme = localStorage.getItem("vite-ui-theme")
+        const root = document.documentElement;
+        
+        let dark;
+      
+        if (theme === "system") {
+          dark = matchMedia("(prefers-color-scheme: dark)").matches
+        } else {
+          dark = theme === "dark";
+        }
+
+        root.classList.toggle("light", !dark);
+        root.classList.toggle("dark", dark);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
