@@ -1,9 +1,21 @@
 import { useState } from "react";
 import { useCreateDestination, useDestinations, useToggleDestination } from "../api/config";
 import { useQueryClient } from "@tanstack/react-query";
-import { Badge } from "../components/Badge";
 import { ApiError } from "../api/errors";
 import { toast } from "sonner";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { LivenessBadge } from "@/components/ui/liveness-badge";
 
 export function Destinations() {
   const { isPending, isError, data } = useDestinations();
@@ -13,15 +25,14 @@ export function Destinations() {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [secret, setSecret] = useState("");
-  const [active, setActive] = useState(true);
+  const [active, setActive] = useState<boolean>(true);
 
   const qc = useQueryClient();
 
   if (isPending) return <h1>Loading...</h1>;
   if (isError) return <h1>Error</h1>;
   return (
-    <div>
-      <h2>Destinations:</h2>
+    <div className="w-full max-w-xl">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -36,41 +47,78 @@ export function Destinations() {
                 setActive(true);
               },
               onError: (err) => {
+                setName("");
+                setUrl("");
+                setSecret("");
+                setActive(true);
                 toast.error(err.message);
               },
             },
           );
         }}
       >
-        <div>
-          <label>Name:</label>
-          <input type="text" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-        </div>
-        <div>
-          <label>URL:</label>
-          <input type="text" value={url} onChange={(e) => setUrl(e.currentTarget.value)} />
-        </div>
-        <div>
-          <label>Secret:</label>
-          <input type="text" value={secret} onChange={(e) => setSecret(e.currentTarget.value)} />
-        </div>
-        <div>
-          <input
-            type="checkbox"
-            id="active"
-            name="active"
-            checked={active}
-            onChange={(e) => setActive(e.currentTarget.checked)}
-          />
-          <label htmlFor="active">Active</label>
-        </div>
-        <button type="submit">Submit</button>
+        <FieldGroup>
+          <FieldSet>
+            <FieldLegend>Destinations</FieldLegend>
+            <FieldDescription>A configured endpoint we send webhooks to.</FieldDescription>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="destination-name">Destination Name</FieldLabel>
+                <Input
+                  id="destination-name"
+                  type="text"
+                  value={name}
+                  placeholder="New destination"
+                  required
+                  onChange={(e) => setName(e.currentTarget.value)}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="destination-url">URL</FieldLabel>
+                <Input
+                  id="destination-url"
+                  type="text"
+                  value={url}
+                  placeholder="URL"
+                  required
+                  onChange={(e) => setUrl(e.currentTarget.value)}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="destination-secret">Destination Secret</FieldLabel>
+                <Input
+                  id="destination-secret"
+                  type="text"
+                  value={secret}
+                  onChange={(e) => setSecret(e.currentTarget.value)}
+                />
+              </Field>
+              <Field orientation="horizontal">
+                <Checkbox
+                  id="destination-active"
+                  checked={active}
+                  onCheckedChange={(checked) => {
+                    setActive(!!checked);
+                  }}
+                />
+                <FieldContent>
+                  <FieldLabel htmlFor="destination-active">Active</FieldLabel>
+                </FieldContent>
+              </Field>
+            </FieldGroup>
+          </FieldSet>
+          <Field>
+            <Button type="submit">Create New Destination</Button>
+          </Field>
+        </FieldGroup>
       </form>
       <ol>
         {data.map((d) => (
           <li key={d.id}>
-            {d.id} {d.url} {d.active ? <Badge status="active" /> : <Badge status="paused" />}{" "}
-            <button
+            {d.id} {d.url} {<LivenessBadge active={d.active} />}{" "}
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => {
                 toggleDestination.mutate(
                   { id: d.id, active: !d.active },
@@ -89,7 +137,7 @@ export function Destinations() {
               disabled={toggleDestination.isPending && toggleDestination.variables.id == d.id}
             >
               {d.active ? "Disable" : "Enable"}
-            </button>
+            </Button>
           </li>
         ))}
       </ol>

@@ -8,6 +8,23 @@ import {
 } from "../api/config";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 
 export function RouteConfig() {
   const { isPending, isError, data } = useRoutes();
@@ -31,8 +48,7 @@ export function RouteConfig() {
   if (isPending || sources.isPending || destinations.isPending) return <h1>Loading...</h1>;
   if (isError || sources.isError || destinations.isError) return <h1>Error</h1>;
   return (
-    <div>
-      <h2>Routes:</h2>
+    <div className="w-full max-w-xl">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -45,45 +61,63 @@ export function RouteConfig() {
                 setDestinationId("");
               },
               onError: (err) => {
+                setSourceId("");
+                setDestinationId("");
                 toast.error(err.message);
               },
             },
           );
         }}
       >
-        <div>
-          <label>
-            Source:
-            <select value={sourceId} onChange={(e) => setSourceId(e.currentTarget.value)}>
-              <option value="" disabled>
-                Select a source
-              </option>
-              {(sources.data ?? []).map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <div>
-          <label>
-            Destination:
-            <select value={destinationId} onChange={(e) => setDestinationId(e.currentTarget.value)}>
-              <option value="" disabled>
-                Select a destination
-              </option>
-              {(destinations.data ?? []).map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <button type="submit" disabled={!sourceId || !destinationId}>
-          Create Route
-        </button>
+        <FieldGroup>
+          <FieldSet>
+            <FieldLegend>Routes</FieldLegend>
+            <FieldDescription>
+              A wiring rule connecting one source to one destination.
+            </FieldDescription>
+            <FieldGroup>
+              <Field orientation="horizontal">
+                <FieldLabel htmlFor="source-route">Source</FieldLabel>
+                <Select value={sourceId} onValueChange={(v) => setSourceId(v)}>
+                  <SelectTrigger id="source-route">
+                    <SelectValue placeholder="Select a source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {(sources.data ?? []).map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </FieldGroup>
+            <FieldGroup>
+              <Field orientation="horizontal">
+                <FieldLabel htmlFor="source-destination">Destination</FieldLabel>
+                <Select value={destinationId} onValueChange={(v) => setDestinationId(v)}>
+                  <SelectTrigger id="source-destination">
+                    <SelectValue placeholder="Select a destination" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {(destinations.data ?? []).map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </FieldGroup>
+          </FieldSet>
+          <Field>
+            <Button type="submit">Create New Route</Button>
+          </Field>
+        </FieldGroup>
       </form>
       <ol>
         {data.map((r) => {
@@ -94,7 +128,9 @@ export function RouteConfig() {
               {src?.name || ""}
               {" -> "}
               {dst?.name || ""}
-              <button
+              <Button
+                variant="destructive"
+                size="sm"
                 onClick={() => {
                   deleteRoute.mutate(
                     { id: r.id },
@@ -109,7 +145,7 @@ export function RouteConfig() {
                 disabled={deleteRoute.isPending && deleteRoute.variables.id == r.id}
               >
                 Delete
-              </button>
+              </Button>
             </li>
           );
         })}

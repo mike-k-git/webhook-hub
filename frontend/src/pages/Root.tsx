@@ -3,34 +3,36 @@ import { useHealthCheck } from "../api/healthCheck";
 import { Link, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { Toaster } from "@/components/ui/sonner";
+import { Badge } from "@/components/ui/badge";
 
 function HealthCheckBadge() {
   const { isPending, isError, data } = useHealthCheck();
   if (isPending) {
     return (
-      <span className="inline-flex items-center rounded-md bg-yellow-400/10 px-2 py-1 text-xs font-medium text-yellow-500 inset-ring inset-ring-yellow-400/20">
-        Loading...
-      </span>
+      <div className="min-w-12">
+        <Badge variant="warning">Loading...</Badge>
+      </div>
     );
   }
 
   if (isError) {
     return (
-      <span className="inline-flex items-center rounded-md bg-red-400/10 px-2 py-1 text-xs font-medium text-red-400 inset-ring inset-ring-red-400/20">
-        Error
-      </span>
+      <div className="min-w-12">
+        <Badge variant="danger">Error</Badge>
+      </div>
     );
   }
+
   return (
-    <span className="inline-flex items-center rounded-md bg-green-400/10 px-2 py-1 text-xs font-medium text-green-400 inset-ring inset-ring-green-500/20">
-      {data.status}
-    </span>
+    <div className="min-w-12">
+      <Badge variant="success">{data.status}</Badge>
+    </div>
   );
 }
 
 export function RootComponent() {
   return (
-    <>
+    <div className="w-full">
       <Toaster />
       <div className="p-2 flex gap-2 text-lg border-b">
         <ModeToggle />
@@ -60,8 +62,10 @@ export function RootComponent() {
           Config
         </Link>
       </div>
-      <Outlet />
+      <div className="flex flex-col min-h-screen justify-start items-center">
+        <Outlet />
+      </div>
       <TanStackRouterDevtools position="bottom-right" />
-    </>
+    </div>
   );
 }
