@@ -6,15 +6,13 @@ import {
   useRoutes,
   useSources,
 } from "../api/config";
-import { useNotification } from "../hooks/useNotification";
 import { useQueryClient } from "@tanstack/react-query";
-import { Toast } from "../components/Toast";
+import { toast } from "sonner";
 
 export function RouteConfig() {
   const { isPending, isError, data } = useRoutes();
   const sources = useSources();
   const destinations = useDestinations();
-  const { notification, notify } = useNotification();
   const [sourceId, setSourceId] = useState("");
   const [destinationId, setDestinationId] = useState("");
   const createRoute = useCreateRoute();
@@ -34,7 +32,6 @@ export function RouteConfig() {
   if (isError || sources.isError || destinations.isError) return <h1>Error</h1>;
   return (
     <div>
-      <Toast notification={notification} />
       <h2>Routes:</h2>
       <form
         onSubmit={(e) => {
@@ -48,7 +45,7 @@ export function RouteConfig() {
                 setDestinationId("");
               },
               onError: (err) => {
-                notify({ type: "ERROR", message: err.message });
+                toast.error(err.message);
               },
             },
           );
@@ -104,7 +101,7 @@ export function RouteConfig() {
                     {
                       onSuccess: () => qc.invalidateQueries({ queryKey: ["routes"] }),
                       onError: (err) => {
-                        notify({ type: "ERROR", message: err.message });
+                        toast.error(err.message);
                       },
                     },
                   );

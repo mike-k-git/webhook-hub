@@ -1,14 +1,12 @@
 import { useState } from "react";
 import { useCreateDestination, useDestinations, useToggleDestination } from "../api/config";
-import { useNotification } from "../hooks/useNotification";
 import { useQueryClient } from "@tanstack/react-query";
-import { Toast } from "../components/Toast";
 import { Badge } from "../components/Badge";
 import { ApiError } from "../api/errors";
+import { toast } from "sonner";
 
 export function Destinations() {
   const { isPending, isError, data } = useDestinations();
-  const { notification, notify } = useNotification();
   const createDestination = useCreateDestination();
   const toggleDestination = useToggleDestination();
 
@@ -23,7 +21,6 @@ export function Destinations() {
   if (isError) return <h1>Error</h1>;
   return (
     <div>
-      <Toast notification={notification} />
       <h2>Destinations:</h2>
       <form
         onSubmit={(e) => {
@@ -39,7 +36,7 @@ export function Destinations() {
                 setActive(true);
               },
               onError: (err) => {
-                notify({ type: "ERROR", message: err.message });
+                toast.error(err.message);
               },
             },
           );
@@ -81,9 +78,9 @@ export function Destinations() {
                     onSuccess: () => qc.invalidateQueries({ queryKey: ["destinations"] }),
                     onError: (err) => {
                       if (err instanceof ApiError && err.status === 409) {
-                        notify({ type: "INFO", message: err.message });
+                        toast.info(err.message);
                       } else {
-                        notify({ type: "ERROR", message: err.message });
+                        toast.error(err.message);
                       }
                     },
                   },
