@@ -7,6 +7,15 @@ import { toast } from "sonner";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { LivenessBadge } from "@/components/ui/liveness-badge";
 import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export function Inbox() {
   const { isPending, isError, data } = useInbox();
@@ -22,46 +31,55 @@ export function Inbox() {
   if (isError) return <h1>Error</h1>;
   if (data.length === 0) return <h1>No dead-lettered deliveries</h1>;
   return (
-    <div>
-      <ol className="divide-y divide-gray-200 rounded-lg border border-gray-200">
-        {data.map((item) => {
-          const dst = dstById.get(item.delivery.destination_id);
+    <Table>
+      <TableCaption>Dead-lettered deliveries.</TableCaption>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Status</TableHead>
+          <TableHead>Destination</TableHead>
+          <TableHead>Delivery</TableHead>
+          <TableHead>Actions</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {data.map((d) => {
+          const dst = dstById.get(d.delivery.destination_id);
           return (
-            <li
-              key={item.delivery.id + item.event.id}
-              className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50"
-            >
-              <StatusBadge status={item.delivery.status} />
-              {dst?.name}
-              {dst?.active && <LivenessBadge active={dst.active} />}
-              {item.delivery.id}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  replay.mutate(item.delivery.id, {
-                    onSuccess: () => qc.invalidateQueries({ queryKey: ["inbox"] }),
-                    onError: (err) => {
-                      if (err instanceof ApiError && err.status === 409) {
-                        toast.info(err.message);
-                      } else {
-                        toast.error(err.message);
-                      }
-                      qc.invalidateQueries({ queryKey: ["inbox"] });
-                    },
-                  })
-                }
-                disabled={replay.isPending && replay.variables === item.delivery.id}
-                className="mt-3 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
-              >
-                {replay.isPending && replay.variables === item.delivery.id
-                  ? "Replaying…"
-                  : "Replay"}
-              </Button>
-            </li>
+            <TableRow key={d.delivery.id + d.event.id}>
+              <TableCell>
+                <StatusBadge status={d.delivery.status} />
+              </TableCell>
+              <TableCell>
+                {dst?.name}
+                {dst?.active && <LivenessBadge active={dst.active} />}
+              </TableCell>
+              <TableCell>{d.delivery.id}</TableCell>
+              <TableCell>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    replay.mutate(d.delivery.id, {
+                      onSuccess: () => qc.invalidateQueries({ queryKey: ["inbox"] }),
+                      onError: (err) => {
+                        if (err instanceof ApiError && err.status === 409) {
+                          toast.info(err.message);
+                        } else {
+                          toast.error(err.message);
+                        }
+                        qc.invalidateQueries({ queryKey: ["inbox"] });
+                      },
+                    })
+                  }
+                  disabled={replay.isPending && replay.variables === d.delivery.id}
+                >
+                  {replay.isPending && replay.variables === d.delivery.id ? "Replaying…" : "Replay"}
+                </Button>
+              </TableCell>
+            </TableRow>
           );
         })}
-      </ol>
-    </div>
+      </TableBody>
+    </Table>
   );
 }

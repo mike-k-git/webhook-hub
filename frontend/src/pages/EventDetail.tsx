@@ -7,6 +7,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { LivenessBadge } from "@/components/ui/liveness-badge";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 
 export function EventDetail() {
   const { id } = useParams({ from: "/events/$id" });
@@ -23,29 +32,66 @@ export function EventDetail() {
   if (isPending) return <h1>Loading...</h1>;
   if (isError) return <h1>Error</h1>;
   return (
-    <div>
-      <div className="m-4">
-        <p className="text-2xl">Payload</p>
-        <p className="whitespace-pre">{JSON.stringify(data.payload, null, 2)}</p>
-      </div>
-      <div className="m-4">
-        <p className="text-2xl">Headers</p>
-        {Object.entries(data.headers).map(([h, v]) => (
-          <p key={h.concat(v)}>
-            <span>{h}</span>: <span className="font-semibold">{v}</span>
-          </p>
-        ))}
-      </div>
-      <div className="m-4">
-        <p className="text-2xl">Deliveries</p>
-        {data.deliveries.map((d) => {
-          const dst = dstById.get(d.destination_id);
-          return (
-            <div key={d.id}>
-              <StatusBadge status={d.status} count={d.attempt_count} />
-              <span className="px-1">
-                {d.attempt_count == 1 ? "1 attempt" : `${d.attempt_count} attempts`}
-              </span>
+    <div className="w-full max-w-2xl">
+      <Card className="p-4 m-4">
+        <CardHeader>
+          <CardTitle>Payload</CardTitle>
+          <CardDescription>Event Data</CardDescription>
+        </CardHeader>
+        <CardContent className="whitespace-pre">
+          {JSON.stringify(data.payload, null, 2)}
+        </CardContent>
+      </Card>
+      <Card className="p-4 m-4">
+        <CardHeader>
+          <CardTitle>Headers</CardTitle>
+          <CardDescription>Event Headers</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableBody>
+              {Object.entries(data.headers).map(([h, v]) => (
+                <TableRow key={h.concat(v)}>
+                  <TableCell>{h}</TableCell>
+                  <TableCell>{v}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+      {data.deliveries.map((d) => {
+        const dst = dstById.get(d.destination_id);
+        return (
+          <Card className="p-4 m-4" key={d.id}>
+            <CardHeader>
+              <CardTitle>
+                {dst?.name} {dst && <LivenessBadge active={dst.active} />}
+              </CardTitle>
+              <CardDescription>
+                <StatusBadge status={d.status} count={d.attempt_count} />
+                <span className="px-1">
+                  {d.attempt_count == 1 ? "1 attempt" : `${d.attempt_count} attempts`}
+                </span>
+              </CardDescription>
+              <CardAction>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    replay.mutate(d.id, {
+                      onSuccess: () => qc.invalidateQueries({ queryKey: ["event", id] }),
+                    })
+                  }
+                  disabled={
+                    d.status !== "dead_letter" || (replay.isPending && replay.variables === d.id)
+                  }
+                >
+                  {replay.isPending && replay.variables === d.id ? "Replaying…" : "Replay"}
+                </Button>
+              </CardAction>
+            </CardHeader>
+            <CardContent>
               <ol>
                 {d.attempts.map((a) => (
                   <li key={a.attempt_number}>
@@ -55,30 +101,10 @@ export function EventDetail() {
                   </li>
                 ))}
               </ol>
-              {dst && (
-                <span>
-                  {dst.name} {<LivenessBadge active={dst.active} />}
-                </span>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  replay.mutate(d.id, {
-                    onSuccess: () => qc.invalidateQueries({ queryKey: ["event", id] }),
-                  })
-                }
-                disabled={
-                  d.status !== "dead_letter" || (replay.isPending && replay.variables === d.id)
-                }
-                className="mt-3 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
-              >
-                {replay.isPending && replay.variables === d.id ? "Replaying…" : "Replay"}
-              </Button>
-            </div>
-          );
-        })}
-      </div>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }
