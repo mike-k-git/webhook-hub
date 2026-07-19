@@ -1,6 +1,7 @@
 import { Link, useSearch } from "@tanstack/react-router";
 import { useEvents } from "../api/events";
-import { Badge } from "../components/Badge";
+import { StatusBadge } from "@/components/ui/status-badge";
+import type { components } from "@/api/schema";
 
 export function Events() {
   const { source, status } = useSearch({ from: "/events/" });
@@ -30,13 +31,15 @@ export function Events() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {e.rollup.total > 0 && (
-                    <>
-                      {Object.entries(e.rollup.counts_by_status).map(([deliveryStatus, count]) => (
-                        <Badge key={deliveryStatus} status={deliveryStatus} count={count} />
-                      ))}
-                    </>
-                  )}
+                  {e.rollup.total > 0 &&
+                    (
+                      Object.entries(e.rollup.counts_by_status) as [
+                        components["schemas"]["DeliveryStatus"],
+                        number,
+                      ][]
+                    ).map(([deliveryStatus, count]) => (
+                      <StatusBadge key={deliveryStatus} status={deliveryStatus} count={count} />
+                    ))}
                 </div>
               </Link>
             </li>

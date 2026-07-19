@@ -4,7 +4,9 @@ import { useDestinations } from "../api/config";
 import { useMemo } from "react";
 import { useReplay } from "../api/inbox";
 import { useQueryClient } from "@tanstack/react-query";
-import { Badge } from "../components/Badge";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { LivenessBadge } from "@/components/ui/liveness-badge";
+import { Button } from "@/components/ui/button";
 
 export function EventDetail() {
   const { id } = useParams({ from: "/events/$id" });
@@ -40,7 +42,7 @@ export function EventDetail() {
           const dst = dstById.get(d.destination_id);
           return (
             <div key={d.id}>
-              <Badge status={d.status} />
+              <StatusBadge status={d.status} count={d.attempt_count} />
               <span className="px-1">
                 {d.attempt_count == 1 ? "1 attempt" : `${d.attempt_count} attempts`}
               </span>
@@ -55,10 +57,12 @@ export function EventDetail() {
               </ol>
               {dst && (
                 <span>
-                  {dst.name} {dst.active ? <Badge status="active" /> : <Badge status="paused" />}
+                  {dst.name} {<LivenessBadge active={dst.active} />}
                 </span>
               )}
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() =>
                   replay.mutate(d.id, {
                     onSuccess: () => qc.invalidateQueries({ queryKey: ["event", id] }),
@@ -70,7 +74,7 @@ export function EventDetail() {
                 className="mt-3 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
               >
                 {replay.isPending && replay.variables === d.id ? "Replaying…" : "Replay"}
-              </button>
+              </Button>
             </div>
           );
         })}

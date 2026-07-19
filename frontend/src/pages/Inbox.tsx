@@ -3,8 +3,10 @@ import { useDestinations } from "../api/config";
 import { useInbox, useReplay } from "../api/inbox";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../api/errors";
-import { Badge } from "../components/Badge";
 import { toast } from "sonner";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { LivenessBadge } from "@/components/ui/liveness-badge";
+import { Button } from "@/components/ui/button";
 
 export function Inbox() {
   const { isPending, isError, data } = useInbox();
@@ -29,10 +31,13 @@ export function Inbox() {
               key={item.delivery.id + item.event.id}
               className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50"
             >
-              <Badge status={item.delivery.status} /> {dst?.name}
-              {dst?.active ? <Badge status="active" /> : <Badge status="paused" />}
+              <StatusBadge status={item.delivery.status} />
+              {dst?.name}
+              {dst?.active && <LivenessBadge active={dst.active} />}
               {item.delivery.id}
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() =>
                   replay.mutate(item.delivery.id, {
                     onSuccess: () => qc.invalidateQueries({ queryKey: ["inbox"] }),
@@ -52,7 +57,7 @@ export function Inbox() {
                 {replay.isPending && replay.variables === item.delivery.id
                   ? "Replaying…"
                   : "Replay"}
-              </button>
+              </Button>
             </li>
           );
         })}
