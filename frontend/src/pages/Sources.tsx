@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 
 export function Sources() {
   const { isPending, isError, data } = useSources();
@@ -77,13 +78,22 @@ export function Sources() {
           </Field>
         </FieldGroup>
       </form>
-      <ol>
-        {data.map((s) => (
-          <li key={s.id}>
-            {s.id} {s.name}
-          </li>
-        ))}
-      </ol>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableCell>Name</TableCell>
+            <TableCell>ID</TableCell>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.map((s) => (
+            <TableRow key={s.id}>
+              <TableCell className="font-bold">{s.name}</TableCell>
+              <TableCell className="font-mono text-primary/50">{s.id}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }

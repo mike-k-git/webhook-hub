@@ -2,6 +2,16 @@ import { Link, useSearch } from "@tanstack/react-router";
 import { useEvents } from "../api/events";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { components } from "@/api/schema";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export function Events() {
   const { source, status } = useSearch({ from: "/events/" });
@@ -13,24 +23,28 @@ export function Events() {
   if (isPending) return <h1>Loading...</h1>;
   if (isError) return <h1>Error</h1>;
   return (
-    <div>
-      <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200">
-        {data.pages
-          .flatMap((p) => p.items)
-          .map((e) => (
-            <li key={e.id} className="hover:bg-gray-50">
-              <Link
-                to="/events/$id"
-                params={{ id: e.id }}
-                className="flex items-center justify-between gap-4 px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-mono text-sm text-gray-900">{e.id}</p>
-                  <p className="text-xs text-gray-500">
-                    {new Date(e.received_at).toLocaleString()}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-1">
+    <>
+      <Table>
+        <TableCaption>The latest received webhooks</TableCaption>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Event ID</TableHead>
+            <TableHead>Received</TableHead>
+            <TableHead>Statuses</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.pages
+            .flatMap((p) => p.items)
+            .map((e) => (
+              <TableRow key={e.id}>
+                <TableCell>
+                  <Link to="/events/$id" params={{ id: e.id }}>
+                    {e.id}
+                  </Link>
+                </TableCell>
+                <TableCell>{new Date(e.received_at).toLocaleString()}</TableCell>
+                <TableCell>
                   {e.rollup.total > 0 &&
                     (
                       Object.entries(e.rollup.counts_by_status) as [
@@ -40,20 +54,16 @@ export function Events() {
                     ).map(([deliveryStatus, count]) => (
                       <StatusBadge key={deliveryStatus} status={deliveryStatus} count={count} />
                     ))}
-                </div>
-              </Link>
-            </li>
-          ))}
-      </ul>
+                </TableCell>
+              </TableRow>
+            ))}
+        </TableBody>
+      </Table>
       {hasNextPage && (
-        <button
-          onClick={() => fetchNextPage()}
-          disabled={isFetchingNextPage}
-          className="mt-3 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
-        >
+        <Button onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
           {isFetchingNextPage ? "Loading..." : "Load more"}
-        </button>
+        </Button>
       )}
-    </div>
+    </>
   );
 }

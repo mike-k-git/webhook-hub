@@ -1,7 +1,6 @@
 import { ModeToggle } from "@/components/mode-toggle";
 import { useHealthCheck } from "../api/healthCheck";
 import { Link, Outlet } from "@tanstack/react-router";
-import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { Toaster } from "@/components/ui/sonner";
 import { Badge } from "@/components/ui/badge";
 
@@ -65,7 +64,6 @@ export function RootComponent() {
       <div className="flex flex-col min-h-screen justify-start items-center">
         <Outlet />
       </div>
-      <TanStackRouterDevtools position="bottom-right" />
     </div>
   );
 }

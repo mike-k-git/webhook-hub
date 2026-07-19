@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LivenessBadge } from "@/components/ui/liveness-badge";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 
 export function Destinations() {
   const { isPending, isError, data } = useDestinations();
@@ -112,35 +113,49 @@ export function Destinations() {
           </Field>
         </FieldGroup>
       </form>
-      <ol>
-        {data.map((d) => (
-          <li key={d.id}>
-            {d.id} {d.url} {<LivenessBadge active={d.active} />}{" "}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                toggleDestination.mutate(
-                  { id: d.id, active: !d.active },
-                  {
-                    onSuccess: () => qc.invalidateQueries({ queryKey: ["destinations"] }),
-                    onError: (err) => {
-                      if (err instanceof ApiError && err.status === 409) {
-                        toast.info(err.message);
-                      } else {
-                        toast.error(err.message);
-                      }
-                    },
-                  },
-                );
-              }}
-              disabled={toggleDestination.isPending && toggleDestination.variables.id == d.id}
-            >
-              {d.active ? "Disable" : "Enable"}
-            </Button>
-          </li>
-        ))}
-      </ol>
+      <Table className="mt-4">
+        <TableHeader>
+          <TableRow>
+            <TableCell>URL</TableCell>
+            <TableCell>Status</TableCell>
+            <TableCell className="text-right">Actions</TableCell>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.map((d) => (
+            <TableRow key={d.id}>
+              <TableCell>{d.url}</TableCell>
+              <TableCell>
+                <LivenessBadge active={d.active} />
+              </TableCell>
+              <TableCell className="text-right">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    toggleDestination.mutate(
+                      { id: d.id, active: !d.active },
+                      {
+                        onSuccess: () => qc.invalidateQueries({ queryKey: ["destinations"] }),
+                        onError: (err) => {
+                          if (err instanceof ApiError && err.status === 409) {
+                            toast.info(err.message);
+                          } else {
+                            toast.error(err.message);
+                          }
+                        },
+                      },
+                    );
+                  }}
+                  disabled={toggleDestination.isPending && toggleDestination.variables.id == d.id}
+                >
+                  {d.active ? "Disable" : "Enable"}
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }

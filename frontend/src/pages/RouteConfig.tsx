@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 
 export function RouteConfig() {
   const { isPending, isError, data } = useRoutes();
@@ -119,37 +120,47 @@ export function RouteConfig() {
           </Field>
         </FieldGroup>
       </form>
-      <ol>
-        {data.map((r) => {
-          const src = srcById.get(r.source_id);
-          const dst = dstById.get(r.destination_id);
-          return (
-            <li key={r.id}>
-              {src?.name || ""}
-              {" -> "}
-              {dst?.name || ""}
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => {
-                  deleteRoute.mutate(
-                    { id: r.id },
-                    {
-                      onSuccess: () => qc.invalidateQueries({ queryKey: ["routes"] }),
-                      onError: (err) => {
-                        toast.error(err.message);
-                      },
-                    },
-                  );
-                }}
-                disabled={deleteRoute.isPending && deleteRoute.variables.id == r.id}
-              >
-                Delete
-              </Button>
-            </li>
-          );
-        })}
-      </ol>
+      <Table className="mt-4">
+        <TableHeader>
+          <TableRow>
+            <TableCell>Source</TableCell>
+            <TableCell>Destination</TableCell>
+            <TableCell className="text-right">Action</TableCell>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.map((r) => {
+            const src = srcById.get(r.source_id);
+            const dst = dstById.get(r.destination_id);
+            return (
+              <TableRow key={r.id}>
+                <TableCell>{src?.name}</TableCell>
+                <TableCell>{dst?.name}</TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      deleteRoute.mutate(
+                        { id: r.id },
+                        {
+                          onSuccess: () => qc.invalidateQueries({ queryKey: ["routes"] }),
+                          onError: (err) => {
+                            toast.error(err.message);
+                          },
+                        },
+                      );
+                    }}
+                    disabled={deleteRoute.isPending && deleteRoute.variables.id == r.id}
+                  >
+                    Delete
+                  </Button>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
     </div>
   );
 }
